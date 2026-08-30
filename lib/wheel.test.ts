@@ -1,0 +1,33 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { badgeCodeFor, spinWeighted, WHEEL_PRIZES } from './wheel';
+
+describe('server-side weighted wheel', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('maps the start and end of the random range to valid prizes', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    expect(spinWeighted()).toBe('badge_bronze');
+
+    vi.spyOn(Math, 'random').mockReturnValue(0.999999);
+    expect(spinWeighted()).toBe('jackpot_usdc');
+  });
+
+  it('has positive weights totaling 100', () => {
+    const weights = Object.values(WHEEL_PRIZES).map((prize) => prize.weight);
+    expect(weights.every((weight) => weight > 0)).toBe(true);
+    expect(weights.reduce((sum, weight) => sum + weight, 0)).toBe(100);
+  });
+});
+
+describe('cosmetic badge catalog', () => {
+  it('keeps the established weights while mapping every outcome to a stable badge code', () => {
+    expect(Object.fromEntries(Object.entries(WHEEL_PRIZES).map(([id, prize]) => [id, prize.weight]))).toEqual({
+      badge_bronze: 30, badge_silver: 20, badge_flame: 15, discount_fee: 10,
+      badge_gold: 8, streak_boost: 7, badge_diamond: 5, jackpot_usdc: 5,
+    });
+    expect(Object.keys(WHEEL_PRIZES).map(id => badgeCodeFor(id as keyof typeof WHEEL_PRIZES))).toEqual([
+      'BRONZE', 'SILVER', 'GOLD', 'BRONZE', 'GOLD', 'DIAMOND', 'DIAMOND', 'JACKPOT',
+    ]);
+  });
+});

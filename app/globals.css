@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #050510;
+  background-image:
+    radial-gradient(1100px 520px at 85% -10%, rgba(124, 58, 237, 0.16), transparent 60%),
+    radial-gradient(900px 480px at -10% 25%, rgba(37, 99, 235, 0.12), transparent 55%);
+  background-attachment: fixed;
+}
+
+/* Glowing accents for the streak UI */
+.text-glow-amber {
+  text-shadow:
+    0 0 16px rgba(251, 146, 60, 0.6),
+    0 0 40px rgba(251, 146, 60, 0.3);
+}
+
+.text-glow-violet {
+  text-shadow:
+    0 0 16px rgba(167, 139, 250, 0.55),
+    0 0 40px rgba(139, 92, 246, 0.3);
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.4);
+}
+
+/* Cleaner number inputs for the USDC amount field */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

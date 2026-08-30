@@ -1,0 +1,46 @@
+{
+  "name": "@solstreak/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "test:reconciliation:integration": "vitest run --config vitest.reconciliation-integration.config.mts",
+    "test:scheduler:integration": "vitest run --config vitest.scheduler-integration.config.mts",
+    "test:api-perimeter:integration": "vitest run --config vitest.api-perimeter-integration.config.mts",
+    "test:cosmetic-badges:integration": "vitest run --config vitest.cosmetic-badges-integration.config.mts",
+    "db:migrate": "node --env-file=.env.local scripts/migrate.mjs"
+  },
+  "dependencies": {
+    "@jup-ag/lend": "^0.2.0",
+    "@privy-io/react-auth": "^3.38.0",
+    "@solana-program/memo": "^0.8.0",
+    "@solana-program/system": "^0.8.1",
+    "@solana-program/token": "^0.6.0",
+    "@solana/kit": "^3.0.3",
+    "@solana/web3.js": "^1.95.3",
+    "bn.js": "^5.2.1",
+    "jose": "^6.2.10",
+    "next": "^16.3.3",
+    "postgres": "^3.4.9",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.5",
+    "@types/node": "^20.14.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}
