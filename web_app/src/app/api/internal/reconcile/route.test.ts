@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ runConfiguredReconciliation: vi.fn(), enforceApiRateLimit: vi.fn() }));
@@ -7,7 +8,8 @@ vi.mock('@/lib/rateLimit', async importOriginal => ({
   enforceApiRateLimit: mocks.enforceApiRateLimit,
 }));
 
-import { createSchedulerHandler, POST } from './route';
+import { createSchedulerHandler } from '@/lib/reconciliationSchedulerHandler';
+import { POST } from './route';
 import { RateLimitExceededError } from '@/lib/rateLimit';
 
 const ZERO_SUMMARY = {
@@ -21,6 +23,12 @@ describe('reconciliation scheduler entry point', () => {
     vi.stubEnv('RECONCILIATION_SECRET', 'scheduler-secret');
     mocks.runConfiguredReconciliation.mockResolvedValue(ZERO_SUMMARY);
     mocks.enforceApiRateLimit.mockResolvedValue({ allowed: true, remaining: 5, retryAfterSeconds: 60 });
+  });
+
+  it('keeps the Next.js route export surface free of scheduler helpers', () => {
+    const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(/export\s+async\s+function\s+POST\b/);
+    expect(source).not.toMatch(/export\s+(?:async\s+)?(?:function|const|let|var|class)\s+createSchedulerHandler\b/);
   });
 
   it('rejects requests without the server-only bearer secret', async () => {

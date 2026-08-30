@@ -5,3 +5,9 @@ node_modules/
 npm-debug.log*
 
 tsconfig.tsbuildinfo
+
+# Standalone Next.js application artifacts
+web_app/node_modules/
+web_app/.next/
+web_app/.env.local
+web_app/tsconfig.tsbuildinfo

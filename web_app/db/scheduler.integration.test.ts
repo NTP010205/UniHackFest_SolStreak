@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import postgres, { type Sql } from 'postgres';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-import { createSchedulerHandler } from '../src/app/api/internal/reconcile/route';
+import { createSchedulerHandler } from '../src/lib/reconciliationSchedulerHandler';
 import {
   reconcileSubmissions,
   type ReconciliationChain,
