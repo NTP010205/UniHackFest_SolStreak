@@ -61,7 +61,7 @@ describe('network profile data migration', () => {
   });
 
   it('filters dashboard totals, streaks and spins by network profile', async () => {
-    const store = await readFile(new URL('../lib/store.ts', import.meta.url), 'utf8');
+    const store = await readFile(new URL('../src/lib/store.ts', import.meta.url), 'utf8');
     expect(store.match(/network_profile = \$\{networkProfile\}/g)?.length).toBeGreaterThanOrEqual(4);
     expect(store).toContain('ON CONFLICT (network_profile, signature) DO NOTHING');
   });

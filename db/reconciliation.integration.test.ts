@@ -3,10 +3,10 @@ import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Connection } from '@solana/web3.js';
 
-import { reconcileSubmissions, type ReconciliationChain, type ReconciliationStore } from '../lib/reconciliation';
-import { verifyDepositWithConnection, verifyWithdrawalWithConnection } from '../lib/onchain';
-import { resolveNetworkProfile } from '../lib/networkProfile';
-import type { SubmissionRecord, SubmissionStatus } from '../lib/submissions';
+import { reconcileSubmissions, type ReconciliationChain, type ReconciliationStore } from '../src/lib/reconciliation';
+import { verifyDepositWithConnection, verifyWithdrawalWithConnection } from '../src/lib/onchain';
+import { resolveNetworkProfile } from '../src/lib/networkProfile';
+import type { SubmissionRecord, SubmissionStatus } from '../src/lib/submissions';
 
 const rehearsalUrl = process.env.SOLSTREAK_REHEARSAL_DATABASE_URL;
 const depositFixtureSignature = process.env.SOLSTREAK_DEVNET_DEPOSIT_SIGNATURE;

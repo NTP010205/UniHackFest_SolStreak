@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import postgres, { type Sql } from 'postgres';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-import { consumeBadgeSpin, grantWelcomeEntitlement, publicBadgeSpinResult, type BadgeSpinResult } from '../lib/badges';
+import { consumeBadgeSpin, grantWelcomeEntitlement, publicBadgeSpinResult, type BadgeSpinResult } from '../src/lib/badges';
 
 const rehearsalUrl = process.env.SOLSTREAK_REHEARSAL_DATABASE_URL;
 const PROJECT_REF = 'ugijqdapnsuefnbldlpt';

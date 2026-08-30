@@ -1,13 +1,13 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { BADGE_CODES } from '../lib/wheel';
+import { BADGE_CODES } from '../src/lib/wheel';
 
 const api = readFileSync(new URL('../docs/api-contract.md', import.meta.url), 'utf8');
 const handoff = readFileSync(new URL('../docs/frontend-handoff.md', import.meta.url), 'utf8');
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
-function routePaths(root = new URL('../app/api/', import.meta.url), prefix = '/api'): string[] {
+function routePaths(root = new URL('../src/app/api/', import.meta.url), prefix = '/api'): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap(entry => {
     if (!entry.isDirectory()) return [];
     const child = new URL(`${entry.name}/`, root);

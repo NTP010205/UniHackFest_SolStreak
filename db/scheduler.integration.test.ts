@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto';
 import postgres, { type Sql } from 'postgres';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-import { createSchedulerHandler } from '../app/api/internal/reconcile/route';
+import { createSchedulerHandler } from '../src/app/api/internal/reconcile/route';
 import {
   reconcileSubmissions,
   type ReconciliationChain,
   type ReconciliationStore,
   type ReconciliationSummary,
-} from '../lib/reconciliation';
-import type { SubmissionRecord, SubmissionStatus } from '../lib/submissions';
+} from '../src/lib/reconciliation';
+import type { SubmissionRecord, SubmissionStatus } from '../src/lib/submissions';
 
 const rehearsalUrl = process.env.SOLSTREAK_REHEARSAL_DATABASE_URL;
 const rehearsalSecret = process.env.SOLSTREAK_REHEARSAL_CRON_SECRET;

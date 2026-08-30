@@ -18,7 +18,7 @@ from reportlab.platypus import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "docs" / "Bao_cao_ky_thuat_SolStreak.pdf"
+OUTPUT = ROOT / "docs" / "reports" / "Bao_cao_ky_thuat_SolStreak.pdf"
 OUTPUT.parent.mkdir(parents=True, exist_ok=True)
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
@@ -126,7 +126,7 @@ story += [Spacer(1, 28 * mm), p("SOLSTREAK", "TitleVN"), Spacer(1, 5 * mm)]
 story += [p("BÁO CÁO KỸ THUẬT VÀ KIỂM TOÁN HIỆN TRẠNG", "SubTitleVN"), Spacer(1, 14 * mm)]
 story += [status_box("KẾT LUẬN KIỂM TOÁN", "CHƯA đáp ứng đầy đủ toàn bộ lộ trình PDF. Phase 1–4 đã có nền tảng chạy được; Phase 5 Anchor chưa triển khai và một số gate tích hợp/production còn thiếu.", AMBER, AMBER_BG), Spacer(1, 12 * mm)]
 story += [table(["Thuộc tính", "Giá trị"], [
-    ["Tài liệu đối chiếu", "SolStreak_lo_trinh_ky_thuat.pdf — 16 trang"],
+    ["Tài liệu đối chiếu", "docs/plans/SolStreak_lo_trinh_ky_thuat.pdf — 16 trang"],
     ["Ngày kiểm toán", "27/08/2026"],
     ["Phạm vi", "Ứng dụng web động, API backend, Privy, Jupiter Earn, Solana RPC, PostgreSQL, vòng quay, Anchor roadmap"],
     ["Môi trường xác minh", "Localhost/WSL để test model; chưa triển khai public web"],

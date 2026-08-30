@@ -8,8 +8,8 @@ import {
   normalizeRateLimitWindow,
   RateLimitExceededError,
   rateLimitRetentionCutoff,
-} from '../lib/rateLimit';
-import { cleanupExpiredRateLimitBuckets } from '../lib/rateLimitMaintenance';
+} from '../src/lib/rateLimit';
+import { cleanupExpiredRateLimitBuckets } from '../src/lib/rateLimitMaintenance';
 
 const rehearsalUrl = process.env.SOLSTREAK_REHEARSAL_DATABASE_URL;
 const PROJECT_REF = 'ugijqdapnsuefnbldlpt';
