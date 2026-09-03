@@ -137,6 +137,45 @@ type SubmissionRecord = {
 
 The recovery query returns only unresolved statuses from storage, even though the public type above lists all lifecycle values that a tracked record can carry.
 
+## Devnet Admin Lab endpoints
+
+All Admin Lab routes authenticate through the normal Privy identity-token flow, exact-match the server-only `SOLSTREAK_ADMIN_PRIVY_USER_IDS` allowlist, and reject any active profile other than Devnet. Missing/empty allowlist, non-admin identity, and Mainnet all return `403 ADMIN_FORBIDDEN` before rate-limit or business database mutation. The allowlist is never returned to clients.
+
+### `GET /api/admin/metrics`
+
+Returns `200` only for an authenticated Devnet admin:
+
+```ts
+{
+  isAdmin: true;
+  networkProfile: 'devnet';
+  totalUsers: number;
+  devnetProfiles: number;
+  activeProfiles7d: number;
+  activeStreaks: number;
+  streakDistribution: { days1to6: number; days7to14: number; days15to29: number; days30Plus: number };
+  totalSpins: number;
+  totalBadgeAwards: number;
+  uniqueBadgeOwnerships: number;
+}
+```
+
+Only aggregate Devnet values are returned. Wallet addresses, Privy IDs, allowlists, secrets, and Mainnet data are excluded.
+
+### `POST /api/admin/spin`
+
+Requires JSON `{}` and a UUID `Idempotency-Key`. Success uses the ordinary public badge-spin result contract, with `source: 'admin_test'`. The server uses cosmetic weights Bronze 40%, Silver 27%, Gold 23%, Diamond 5%, Jackpot 5%. A replay returns the same persisted result; the operation creates one consumed audit entitlement, one spin, one award, and updates badge ownership atomically without consuming `welcome_demo` or `streak` entitlements.
+
+### `POST /api/admin/streak`
+
+Strict body:
+
+```ts
+{ currentStreak: number } // integer, 0–365
+```
+
+Success: `200 { currentStreak: number; longestStreak: number }`. The server derives Privy user and wallet from the authenticated identity; arbitrary identity/wallet fields are rejected. This changes only the admin's Devnet demo streak and does not change normal streak calculation behavior.
+
 ## Internal-only endpoint
 
 ### `POST /api/internal/reconcile` — server/scheduler only

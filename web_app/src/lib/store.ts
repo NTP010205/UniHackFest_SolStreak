@@ -3,8 +3,8 @@ import type { Sql, TransactionSql } from 'postgres';
 import { db } from './db';
 import { calendarDayVN, lastCalendarDays, previousDay, streakDayOf, updateStreak } from './streak';
 import type { VerifiedDeposit } from './onchain';
-import { spinWeighted } from './wheel';
-import { BADGE_DISPLAY_LABELS, consumeBadgeSpin, grantWelcomeEntitlement, type BadgeSpinResult } from './badges';
+import { spinAdminWeighted, spinWeighted } from './wheel';
+import { BADGE_DISPLAY_LABELS, consumeAdminBadgeSpin, consumeBadgeSpin, grantWelcomeEntitlement, type BadgeSpinResult } from './badges';
 import { emitOperationalEvent, safeRequestId } from './observability';
 import type { SolanaNetworkProfileName } from './networkProfile';
 import type { SubmissionRecord, SubmissionStatus, TrackSubmissionInput } from './submissions';
@@ -320,6 +320,99 @@ export async function recordSpin(
     if (!awarded) throw new SpinNotEligibleError('Make a verified deposit to unlock the wheel');
     return awarded;
   });
+}
+
+export async function recordAdminSpin(
+  userId: string,
+  walletAddress: string,
+  networkProfile: SolanaNetworkProfileName,
+  requestKey: string,
+  now = new Date(),
+  draw = spinAdminWeighted,
+): Promise<BadgeSpinResult> {
+  if (networkProfile !== 'devnet') throw new Error('Admin test spins are Devnet-only');
+  return db().begin(async (sql) => {
+    await ensureUser(sql, userId, walletAddress);
+    return consumeAdminBadgeSpin(sql, {
+      profile: networkProfile, userId, walletAddress, spinDay: calendarDayVN(now), requestKey, draw, now,
+    });
+  });
+}
+
+export async function setAdminDemoStreak(
+  userId: string,
+  walletAddress: string,
+  networkProfile: SolanaNetworkProfileName,
+  currentStreak: number,
+  now = new Date(),
+) {
+  if (networkProfile !== 'devnet') throw new Error('Admin streak adjustment is Devnet-only');
+  return db().begin(async (sql) => {
+    await ensureUser(sql, userId, walletAddress);
+    const [row] = await sql<{ current_streak: number; longest_streak: number }[]>`
+      INSERT INTO streaks (
+        network_profile, wallet_address, current_streak, longest_streak, last_counted_day
+      ) VALUES (
+        'devnet', ${walletAddress}, ${currentStreak}, ${currentStreak},
+        ${currentStreak > 0 ? streakDayOf(now) : null}
+      )
+      ON CONFLICT (network_profile, wallet_address)
+      DO UPDATE SET current_streak = EXCLUDED.current_streak,
+        longest_streak = GREATEST(streaks.longest_streak, EXCLUDED.current_streak),
+        last_counted_day = EXCLUDED.last_counted_day
+      RETURNING current_streak, longest_streak
+    `;
+    return { currentStreak: row.current_streak, longestStreak: row.longest_streak };
+  });
+}
+
+export async function devnetAdminMetrics() {
+  const sql = db();
+  const [summary] = await sql<{
+    total_users: number; devnet_profiles: number; active_profiles_7d: number;
+    active_streaks: number; total_spins: number; total_badge_awards: number;
+    unique_badge_ownerships: number; streak_1_6: number; streak_7_14: number;
+    streak_15_29: number; streak_30_plus: number;
+  }[]>`
+    WITH devnet_profiles AS (
+      SELECT privy_user_id, wallet_address FROM spin_entitlements WHERE network_profile = 'devnet'
+      UNION SELECT app_user.privy_user_id, deposit.wallet_address FROM deposits deposit
+        JOIN users app_user USING (wallet_address) WHERE deposit.network_profile = 'devnet'
+      UNION SELECT app_user.privy_user_id, streak.wallet_address FROM streaks streak
+        JOIN users app_user USING (wallet_address) WHERE streak.network_profile = 'devnet'
+    ), active_profiles AS (
+      SELECT DISTINCT app_user.privy_user_id FROM users app_user
+      JOIN deposits deposit USING (wallet_address)
+      WHERE deposit.network_profile = 'devnet' AND deposit.block_time >= now() - interval '7 days'
+      UNION SELECT DISTINCT privy_user_id FROM spins
+      WHERE network_profile = 'devnet' AND created_at >= now() - interval '7 days'
+    )
+    SELECT
+      (SELECT count(DISTINCT privy_user_id)::int FROM devnet_profiles) AS total_users,
+      (SELECT count(*)::int FROM devnet_profiles) AS devnet_profiles,
+      (SELECT count(*)::int FROM active_profiles) AS active_profiles_7d,
+      (SELECT count(*)::int FROM streaks WHERE network_profile = 'devnet' AND current_streak > 0) AS active_streaks,
+      (SELECT count(*)::int FROM spins WHERE network_profile = 'devnet') AS total_spins,
+      (SELECT count(*)::int FROM badge_awards WHERE network_profile = 'devnet') AS total_badge_awards,
+      (SELECT count(*)::int FROM user_badges WHERE network_profile = 'devnet') AS unique_badge_ownerships,
+      (SELECT count(*)::int FROM streaks WHERE network_profile = 'devnet' AND current_streak BETWEEN 1 AND 6) AS streak_1_6,
+      (SELECT count(*)::int FROM streaks WHERE network_profile = 'devnet' AND current_streak BETWEEN 7 AND 14) AS streak_7_14,
+      (SELECT count(*)::int FROM streaks WHERE network_profile = 'devnet' AND current_streak BETWEEN 15 AND 29) AS streak_15_29,
+      (SELECT count(*)::int FROM streaks WHERE network_profile = 'devnet' AND current_streak >= 30) AS streak_30_plus
+  `;
+  return {
+    totalUsers: summary.total_users,
+    devnetProfiles: summary.devnet_profiles,
+    activeProfiles7d: summary.active_profiles_7d,
+    activeStreaks: summary.active_streaks,
+    streakDistribution: {
+      days1to6: summary.streak_1_6, days7to14: summary.streak_7_14,
+      days15to29: summary.streak_15_29, days30Plus: summary.streak_30_plus,
+    },
+    totalSpins: summary.total_spins,
+    totalBadgeAwards: summary.total_badge_awards,
+    uniqueBadgeOwnerships: summary.unique_badge_ownerships,
+  };
 }
 
 export async function badgeProfileFor(

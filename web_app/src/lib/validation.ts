@@ -48,3 +48,6 @@ export const submissionTrackingSchema = z.object({
   blockhash: blockhashSchema,
   lastValidBlockHeight: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
 }).strict();
+
+export const adminStreakSchema = z.object({ currentStreak: z.number().int().min(0).max(365) }).strict();
+export const adminSpinSchema = z.object({}).strict();

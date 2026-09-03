@@ -7,6 +7,7 @@ import { RateLimitExceededError, RateLimitUnavailableError } from './rateLimit';
 import { AlreadySpunError, SpinNotEligibleError, SubmissionConflictError, WalletBindingError } from './store';
 import { emitOperationalEvent, withRequestId } from './observability';
 import type { SolanaNetworkProfileName } from './networkProfile';
+import { AdminAccessError } from './admin';
 
 export interface ApiErrorContext {
   requestId: string;
@@ -22,6 +23,9 @@ export function apiError(error: unknown, context?: ApiErrorContext) {
   }
   if (error instanceof AuthenticationError) {
     return finish(NextResponse.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, { status: 401 }));
+  }
+  if (error instanceof AdminAccessError) {
+    return finish(NextResponse.json({ error: 'Forbidden', code: 'ADMIN_FORBIDDEN' }, { status: 403 }));
   }
   if (error instanceof RateLimitExceededError) {
     if (context) emitOperationalEvent({ event: 'api.rate_limit.denied', severity: 'warning', status: 'denied',

@@ -30,6 +30,9 @@ export const API_RATE_LIMITS = {
   submissionTrack: { route: 'submissions.track', limit: 20, windowSeconds: 300 },
   submissionRecovery: { route: 'submissions.recovery', limit: 30, windowSeconds: 60 },
   scheduler: { route: 'internal.reconcile', limit: 6, windowSeconds: 60 },
+  adminSpin: { route: 'admin.spin', limit: 20, windowSeconds: 300 },
+  adminStreak: { route: 'admin.streak', limit: 12, windowSeconds: 300 },
+  adminMetrics: { route: 'admin.metrics', limit: 30, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitPolicy>;
 
 export const RATE_LIMIT_RETENTION_HOURS = 24;

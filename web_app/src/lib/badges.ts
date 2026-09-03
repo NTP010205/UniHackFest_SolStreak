@@ -3,7 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import type { SolanaNetworkProfileName } from './networkProfile';
 import { BADGE_CATALOG_VERSION, badgeCodeFor, prizeLabel, type BadgeCode, type WheelPrizeId } from './wheel';
 
-export type SpinSource = 'welcome_demo' | 'streak';
+export type SpinSource = 'welcome_demo' | 'streak' | 'admin_test';
 
 export interface BadgeSpinResult {
   spinId: string;
@@ -153,6 +153,85 @@ export async function consumeBadgeSpin(
   return result({ spin_id: spin.id, prize_id: prize, badge_code: badgeCode,
     award_count: badge.award_count, source: entitlement.source,
     is_new_badge: badge.award_count === 1, remaining_spins_snapshot: remaining.count }, remaining.count);
+}
+
+export async function consumeAdminBadgeSpin(
+  sql: Sql | TransactionSql,
+  input: {
+    profile: SolanaNetworkProfileName;
+    userId: string;
+    walletAddress: string;
+    spinDay: string;
+    requestKey: string;
+    draw: () => WheelPrizeId;
+    now: Date;
+  },
+): Promise<BadgeSpinResult> {
+  if (input.profile !== 'devnet') throw new Error('Admin test spins are Devnet-only');
+  const persistedRequestKey = `admin:${input.requestKey}`;
+  await sql`SELECT pg_advisory_xact_lock(hashtextextended(
+    ${`${input.profile}:${input.userId}:${persistedRequestKey}`}, 0
+  ))`;
+  const [existing] = await sql<AwardRow[]>`
+    SELECT spin.id AS spin_id, spin.prize_id, award.badge_code, award.is_new_badge,
+      award.award_count_snapshot AS award_count, award.remaining_spins_snapshot,
+      entitlement.source
+    FROM spins spin
+    JOIN badge_awards award ON award.spin_id = spin.id AND award.network_profile = spin.network_profile
+    JOIN spin_entitlements entitlement ON entitlement.id = spin.entitlement_id
+      AND entitlement.network_profile = spin.network_profile
+    WHERE spin.network_profile = ${input.profile} AND spin.privy_user_id = ${input.userId}
+      AND spin.request_key = ${persistedRequestKey}
+  `;
+  if (existing) return result(existing, existing.remaining_spins_snapshot, true);
+
+  const prize = input.draw();
+  const badgeCode = badgeCodeFor(prize);
+  const [entitlement] = await sql<{ id: string }[]>`
+    INSERT INTO spin_entitlements (
+      network_profile, privy_user_id, wallet_address, source, source_reference,
+      status, created_at, consumed_at
+    ) VALUES (
+      'devnet', ${input.userId}, ${input.walletAddress}, 'admin_test',
+      ${persistedRequestKey}, 'consumed', ${input.now}, ${input.now}
+    ) RETURNING id
+  `;
+  const [spin] = await sql<{ id: string }[]>`
+    INSERT INTO spins (
+      network_profile, wallet_address, spin_day, prize_id, privy_user_id, source, entitlement_id, request_key
+    ) VALUES (
+      'devnet', ${input.walletAddress}, ${input.spinDay}, ${prize}, ${input.userId},
+      'admin_test', ${entitlement.id}, ${persistedRequestKey}
+    ) RETURNING id
+  `;
+  const [badge] = await sql<{ award_count: number }[]>`
+    INSERT INTO user_badges (
+      network_profile, privy_user_id, wallet_address, badge_code,
+      first_earned_at, last_earned_at, award_count
+    ) VALUES ('devnet', ${input.userId}, ${input.walletAddress}, ${badgeCode}, ${input.now}, ${input.now}, 1)
+    ON CONFLICT (network_profile, privy_user_id, badge_code)
+    DO UPDATE SET award_count = user_badges.award_count + 1,
+      last_earned_at = EXCLUDED.last_earned_at
+    RETURNING award_count
+  `;
+  const [remaining] = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM spin_entitlements
+    WHERE network_profile = 'devnet' AND privy_user_id = ${input.userId} AND status = 'available'
+  `;
+  await sql`
+    INSERT INTO badge_awards (
+      network_profile, privy_user_id, wallet_address, spin_id, entitlement_id,
+      badge_code, catalog_version, is_new_badge, award_count_snapshot,
+      remaining_spins_snapshot, awarded_at
+    ) VALUES (
+      'devnet', ${input.userId}, ${input.walletAddress}, ${spin.id}, ${entitlement.id},
+      ${badgeCode}, ${BADGE_CATALOG_VERSION}, ${badge.award_count === 1},
+      ${badge.award_count}, ${remaining.count}, ${input.now}
+    )
+  `;
+  return result({ spin_id: spin.id, prize_id: prize, badge_code: badgeCode,
+    award_count: badge.award_count, source: 'admin_test', is_new_badge: badge.award_count === 1,
+    remaining_spins_snapshot: remaining.count }, remaining.count);
 }
 
 export const BADGE_DISPLAY_LABELS: Record<BadgeCode, string> = {

@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TransitionEvent } from 'react';
 import { useIdentityToken } from '@privy-io/react-auth';
-import Image from 'next/image';
 
 import Spinner from './Spinner';
+import BadgeArtworkImage from './BadgeArtworkImage';
 import { VideoOverlay } from './ui/VideoOverlay';
+import { BADGE_ARTWORK, type BadgeArtworkCode } from '@/lib/badgeArtwork';
+import { canStartManualSpin, nextWheelSpinPhase, spinRequestFor, type WheelSpinPhase } from '@/lib/wheelSpinFlow';
 
 /**
  * Display-only wheel metadata. Keep the ids in sync with lib/wheel.ts —
@@ -14,22 +16,20 @@ import { VideoOverlay } from './ui/VideoOverlay';
  * never sees the probabilities and never decides outcomes.
  */
 const SEGMENTS = [
-  { id: 'badge_bronze', label: 'Bronze', image: '/assets/images/BronzeMedal.png', color: '#8C5A2B' },
-  { id: 'discount_fee', label: 'Bronze', image: '/assets/images/BronzeMedal.png', color: '#2563EB' },
-  { id: 'badge_silver', label: 'Silver', image: '/assets/images/SilverMedal.png', color: '#475569' },
-  { id: 'streak_boost', label: 'Silver', image: '/assets/images/SilverMedal.png', color: '#7C3AED' },
-  { id: 'badge_flame', label: 'Gold', image: '/assets/images/GoldMedal.png', color: '#EA580C' },
-  { id: 'badge_gold', label: 'Gold', image: '/assets/images/GoldMedal.png', color: '#D97706' },
-  { id: 'badge_diamond', label: 'Diamond', image: '/assets/images/Diamond.png', color: '#0891B2' },
-  { id: 'jackpot_usdc', label: 'Jackpot', image: '/assets/images/Chest.png', color: '#DB2777' },
+  { id: 'badge_bronze', badgeCode: 'BRONZE', label: 'Bronze', image: BADGE_ARTWORK.BRONZE, color: '#8C5A2B' },
+  { id: 'discount_fee', badgeCode: 'BRONZE', label: 'Bronze', image: BADGE_ARTWORK.BRONZE, color: '#2563EB' },
+  { id: 'badge_silver', badgeCode: 'SILVER', label: 'Silver', image: BADGE_ARTWORK.SILVER, color: '#475569' },
+  { id: 'streak_boost', badgeCode: 'SILVER', label: 'Silver', image: BADGE_ARTWORK.SILVER, color: '#7C3AED' },
+  { id: 'badge_flame', badgeCode: 'GOLD', label: 'Gold', image: BADGE_ARTWORK.GOLD, color: '#EA580C' },
+  { id: 'badge_gold', badgeCode: 'GOLD', label: 'Gold', image: BADGE_ARTWORK.GOLD, color: '#D97706' },
+  { id: 'badge_diamond', badgeCode: 'DIAMOND', label: 'Diamond', image: BADGE_ARTWORK.DIAMOND, color: '#0891B2' },
+  { id: 'jackpot_usdc', badgeCode: 'JACKPOT', label: 'Jackpot', image: BADGE_ARTWORK.JACKPOT, color: '#DB2777' },
 ] as const;
 
 type Segment = (typeof SEGMENTS)[number];
 
 const SEG_COUNT = SEGMENTS.length; // 8
 const SEG_DEG = 360 / SEG_COUNT; // 45°
-
-type Phase = 'idle' | 'requesting' | 'spinning' | 'revealed';
 
 const mod = (n: number, m: number) => ((n % m) + m) % m;
 
@@ -79,22 +79,37 @@ function landingRotation(current: number, index: number): number {
 interface Props {
   walletAddress: string;
   canSpin: boolean;
+  isDevnetAdmin?: boolean;
   onSpinComplete?: () => void;
 }
 
-export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: Props) {
+interface PersistedSpinResult {
+  result: Segment['id'];
+  badgeCode: BadgeArtworkCode;
+  label: string;
+  awardCount: number;
+}
+
+export default function LuckyWheel({ walletAddress, canSpin, isDevnetAdmin = false, onSpinComplete }: Props) {
   const { identityToken } = useIdentityToken();
   const [rotation, setRotation] = useState(0);
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<WheelSpinPhase>('idle');
   const [prize, setPrize] = useState<Segment | null>(null);
+  const [persistedResult, setPersistedResult] = useState<PersistedSpinResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [segments, setSegments] = useState<Segment[]>(() => [...SEGMENTS]);
   const [showJackpotVideo, setShowJackpotVideo] = useState(false);
   const pendingPrize = useRef<Segment | null>(null);
-  const requestKey = useRef<string | null>(null);
+  const phaseRef = useRef<WheelSpinPhase>('idle');
 
-  const busy = phase === 'requesting' || phase === 'spinning';
+  const busy = phase !== 'idle';
+  const spinEnabled = isDevnetAdmin || canSpin;
+
+  function transition(event: Parameters<typeof nextWheelSpinPhase>[1]) {
+    phaseRef.current = nextWheelSpinPhase(phaseRef.current, event);
+    setPhase(phaseRef.current);
+  }
 
   useEffect(() => {
     if (expanded && phase === 'idle') setSegments(shuffledSegments());
@@ -115,11 +130,11 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
   }, [expanded]);
 
   useEffect(() => {
-    if (phase !== 'revealed') return;
+    if (phase !== 'revealing') return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setShowJackpotVideo(false);
-        setPhase('idle');
+        transition('reveal_closed');
       }
     };
     window.addEventListener('keydown', closeOnEscape);
@@ -127,24 +142,24 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
   }, [phase]);
 
   async function handleSpin() {
-    if (busy || !walletAddress || !identityToken) return;
+    if (!canStartManualSpin(phaseRef.current, spinEnabled) || !walletAddress || !identityToken) return;
+    transition('manual_request');
     setError(null);
     setPrize(null);
-    setPhase('requesting');
+    setPersistedResult(null);
     try {
-      requestKey.current ??= crypto.randomUUID();
-      const res = await fetch('/api/wheel/spin', {
+      const request = spinRequestFor(isDevnetAdmin, walletAddress, crypto.randomUUID());
+      const res = await fetch(request.path, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'privy-id-token': identityToken,
-          'Idempotency-Key': requestKey.current,
+          'Idempotency-Key': request.requestKey,
         },
-        body: JSON.stringify({ wallet: walletAddress }),
+        body: JSON.stringify(request.body),
       });
-      const data = await res.json();
+      const data = await res.json() as PersistedSpinResult & { error?: string };
       if (!res.ok) throw new Error(data.error ?? 'The wheel is unavailable right now.');
-      requestKey.current = null;
 
       const index = segments.findIndex((s) => s.id === data.result);
       if (index === -1) throw new Error('Unknown prize received from the server.');
@@ -152,17 +167,18 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
       // ✅ The outcome is now FIXED by the backend. Everything below is
       // presentation only — the animation MUST land on this segment.
       pendingPrize.current = segments[index];
-      setPhase('spinning');
+      setPersistedResult(data);
+      transition('request_succeeded');
       setRotation((current) => landingRotation(current, index));
     } catch (err) {
-      setPhase('idle');
+      transition('failed');
       setError(err instanceof Error ? err.message : 'Spin failed. Please try again.');
     }
   }
 
   function handleTransitionEnd(e: TransitionEvent<HTMLDivElement>) {
     if (e.propertyName !== 'transform' || phase !== 'spinning') return;
-    setPhase('revealed');
+    transition('animation_completed');
     setPrize(pendingPrize.current);
     setShowJackpotVideo(pendingPrize.current?.label === 'Jackpot');
     onSpinComplete?.();
@@ -180,6 +196,7 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
       )}
 
       <section
+        id="lucky-wheel"
         onClick={() => {
           if (!expanded) setExpanded(true);
         }}
@@ -223,11 +240,12 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
 
         {/* Rotating wheel — transform driven ONLY by the backend result */}
         <div
-          className="relative h-full w-full will-change-transform"
+          className="relative h-full w-full cursor-pointer will-change-transform"
           style={{
             transform: `rotate(${rotation}deg)`,
             transition: 'transform 4.75s cubic-bezier(0.12, 0.82, 0.16, 1)',
           }}
+          onClick={() => void handleSpin()}
           onTransitionEnd={handleTransitionEnd}
         >
           <svg
@@ -269,7 +287,7 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
           <button
             type="button"
             onClick={handleSpin}
-            disabled={!canSpin || busy || phase === 'revealed'}
+            disabled={!spinEnabled || busy}
             aria-label="Spin the lucky wheel"
             className="wheel-spin-button pointer-events-auto flex h-[76px] w-[76px] flex-col items-center justify-center rounded-full border-4 border-amber-300/80 bg-night-900 text-white shadow-glow-amber transition disabled:cursor-not-allowed disabled:opacity-70"
           >
@@ -297,10 +315,12 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
         <button
           type="button"
           onClick={handleSpin}
-          disabled={!canSpin || busy || phase === 'revealed'}
+          disabled={!spinEnabled || busy}
           className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-sm font-semibold text-night-950 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {busy ? 'Spinning…' : canSpin ? '🎡 Spin for a cosmetic badge' : 'No spin available'}
+          {phase === 'requesting' ? 'Requesting persisted result…' : phase === 'spinning' ? 'Spinning…' :
+            phase === 'revealing' ? 'Reward ready' : isDevnetAdmin ? '∞ Admin test spins' :
+              canSpin ? '🎡 Spin for a cosmetic badge' : 'No spin available'}
         </button>
 
         {error && (
@@ -312,14 +332,14 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
           </p>
         )}
 
-        {!canSpin && !busy && !error && (
+        {!spinEnabled && !busy && !error && (
           <p className="mt-3 text-center text-xs text-slate-500">
             Make a deposit today to keep your spin streak alive.
           </p>
         )}
       </div>
 
-      {phase === 'revealed' && prize?.label === 'Jackpot' && showJackpotVideo && (
+      {phase === 'revealing' && prize?.label === 'Jackpot' && showJackpotVideo && (
         <VideoOverlay
           src="/assets/animations/Hit_Jackpot.webm"
           label="Jackpot celebration"
@@ -328,7 +348,7 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
       )}
 
       {/* Prize reveal modal */}
-      {phase === 'revealed' && prize && !showJackpotVideo && (
+      {phase === 'revealing' && prize && persistedResult && !showJackpotVideo && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-night-950/80 p-4 backdrop-blur-sm"
           role="dialog"
@@ -340,21 +360,16 @@ export default function LuckyWheel({ walletAddress, canSpin, onSpinComplete }: P
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto flex h-40 w-40 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-400/20 to-fuchsia-500/20 p-3 shadow-glow-amber">
-              <Image
-                src={prize.label === 'Jackpot' ? '/assets/images/Jackpot.png' : prize.image}
-                alt={`${prize.label} reward`}
-                width={160}
-                height={160}
-                className="h-full w-full object-contain"
-              />
+              <BadgeArtworkImage code={persistedResult.badgeCode} size={160} className="h-full w-full object-contain" />
             </div>
-            <h3 className="mt-5 font-display text-2xl font-bold text-white">You won {prize.label}!</h3>
+            <h3 className="mt-5 font-display text-2xl font-bold text-white">You won {persistedResult.label}!</h3>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-amber-200">Awarded {persistedResult.awardCount}×</p>
             <p className="mt-2 text-sm text-slate-400">
               Cosmetic badge added to your profile. No financial value; not transferable or redeemable.
             </p>
             <button
               type="button"
-              onClick={() => setPhase('idle')}
+              onClick={() => transition('reveal_closed')}
               className="mt-6 w-full rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-semibold text-white shadow-glow-violet transition hover:brightness-110"
             >
               Xác nhận

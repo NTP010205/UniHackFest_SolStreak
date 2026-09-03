@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { badgeCodeFor, spinWeighted, WHEEL_PRIZES } from './wheel';
+import { badgeCodeFor, spinAdminWeighted, spinWeighted, WHEEL_PRIZES } from './wheel';
 
 describe('server-side weighted wheel', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -17,6 +17,18 @@ describe('server-side weighted wheel', () => {
     const weights = Object.values(WHEEL_PRIZES).map((prize) => prize.weight);
     expect(weights.every((weight) => weight > 0)).toBe(true);
     expect(weights.reduce((sum, weight) => sum + weight, 0)).toBe(100);
+  });
+});
+
+describe('Devnet Admin Lab wheel distribution', () => {
+  afterEach(() => vi.restoreAllMocks());
+  it.each([
+    [0, 'badge_bronze'], [0.399999, 'badge_bronze'], [0.4, 'badge_silver'],
+    [0.669999, 'badge_silver'], [0.67, 'badge_gold'], [0.899999, 'badge_gold'],
+    [0.9, 'badge_diamond'], [0.949999, 'badge_diamond'], [0.95, 'jackpot_usdc'],
+  ] as const)('maps random value %s to %s', (random, expected) => {
+    vi.spyOn(Math, 'random').mockReturnValue(random);
+    expect(spinAdminWeighted()).toBe(expected);
   });
 });
 

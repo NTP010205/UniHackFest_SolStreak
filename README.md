@@ -38,6 +38,7 @@ The current active environment is Devnet. Devnet SOL and Circle Devnet USDC are 
 - One-time Devnet welcome spin and streak-based spin entitlements.
 - Cosmetic badges: `BRONZE`, `SILVER`, `GOLD`, `DIAMOND`, and `JACKPOT`.
 - PostgreSQL-backed API rate limiting and structured operational events.
+- A Devnet-only Admin Lab for persisted cosmetic test spins, self streak demos, and aggregate metrics.
 
 Badges are cosmetic only. They cannot be transferred or redeemed and provide no points, payout, token, NFT, discount, financial value, or streak boost.
 
@@ -109,7 +110,7 @@ The project owner must provide suitable environment values separately. A fronten
 
 ## Environment Configuration
 
-Copy `web_app/.env.local.example` to `web_app/.env.local`; never commit the resulting file. Client-visible values include the Privy app ID, active Solana profile, profile-specific HTTP/WSS RPC endpoints, and transaction gates. Server-only values cover PostgreSQL, server RPC, reconciliation authorization, and any server program override.
+Copy `web_app/.env.local.example` to `web_app/.env.local`; never commit the resulting file. Client-visible values include the Privy app ID, active Solana profile, profile-specific HTTP/WSS RPC endpoints, and transaction gates. Server-only values cover PostgreSQL, server RPC, reconciliation authorization, and any server program override. `SOLSTREAK_ADMIN_PRIVY_USER_IDS` is a comma-separated allowlist of exact Privy user IDs for the Devnet Admin Lab. Missing or empty means nobody is an admin; never expose this value through `NEXT_PUBLIC_*`.
 
 Both transaction gates are fail-closed and false by default:
 
@@ -183,6 +184,8 @@ Frontend work may change layout, typography, responsive behavior, artwork mappin
 Deploy `web_app` as the application root. Configure environment variables in the hosting platform, apply reviewed migrations separately, and connect scheduler/monitoring only after their authorization and rehearsal gates pass. Do not expose server-only variables to client bundles.
 
 Mainnet activation is intentionally separate from ordinary deployment and must follow security review and operational readiness checks.
+
+The Admin Lab is restricted to authenticated allowlisted users on Devnet. It never bypasses wallet funding, transaction flags, signing, on-chain verification, or Mainnet safety boundaries.
 
 ## Current Readiness
 
