@@ -33,8 +33,7 @@ CREATE TABLE IF NOT EXISTS spins (
   wallet_address TEXT NOT NULL REFERENCES users(wallet_address),
   spin_day DATE NOT NULL,
   prize_id TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (network_profile, wallet_address, spin_day)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS transaction_submissions (

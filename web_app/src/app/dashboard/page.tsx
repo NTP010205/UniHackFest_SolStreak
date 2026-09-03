@@ -10,13 +10,14 @@ import PrivyVerification from '@/components/PrivyVerification';
 import Spinner from '@/components/Spinner';
 import StreakTracker from '@/components/StreakTracker';
 import TransactionCard from '@/components/TransactionCard';
-import Leaderboard from '@/components/Leaderboard';
 import { InteractiveBackground } from '@/components/background/InteractiveBackground';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { useSolStreakWallet } from '@/hooks/useSolStreakWallet';
 import { truncateAddress } from '@/lib/format';
 import { ACTIVE_NETWORK } from '@/lib/networkProfile';
 import { VideoOverlay } from '@/components/ui/VideoOverlay';
+import AdminLab from '@/components/AdminLab';
+import BadgeCollection from '@/components/BadgeCollection';
 
 export default function DashboardPage() {
   const { ready, authenticated, wallet } = useSolStreakWallet();
@@ -25,6 +26,12 @@ export default function DashboardPage() {
   const { data, loading, error, refresh } = usePortfolio(wallet?.address);
   const previousStreak = useRef<number | null>(null);
   const [showStreakAnimation, setShowStreakAnimation] = useState(false);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+  const [isDevnetAdmin, setIsDevnetAdmin] = useState(false);
+  const refreshDashboard = useCallback(() => {
+    setProfileRefreshKey(value => value + 1);
+    void refresh();
+  }, [refresh]);
 
   useEffect(() => {
     if (!data) return;
@@ -120,7 +127,7 @@ export default function DashboardPage() {
       {/* Main grid */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <TransactionCard onTransactionComplete={() => void refresh()} />
+          <TransactionCard onTransactionComplete={refreshDashboard} />
           <StreakTracker
             days={data?.last7Days ?? []}
             currentStreak={data?.currentStreak ?? 0}
@@ -130,10 +137,12 @@ export default function DashboardPage() {
         <LuckyWheel
           walletAddress={wallet.address}
           canSpin={data?.canSpin ?? false}
-          onSpinComplete={() => void refresh()}
+          isDevnetAdmin={isDevnetAdmin}
+          onSpinComplete={refreshDashboard}
         />
       </div>
-      <div className="mt-8"><Leaderboard walletAddress={wallet.address} /></div>
+      <div className="mt-8"><AdminLab onChanged={refreshDashboard} onAdminStatusChange={setIsDevnetAdmin} refreshKey={profileRefreshKey} /></div>
+      <div className="mt-8"><BadgeCollection walletAddress={wallet.address} refreshKey={profileRefreshKey} /></div>
       </div>
     </div>
   );

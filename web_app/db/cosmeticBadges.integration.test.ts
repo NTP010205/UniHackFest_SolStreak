@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import postgres, { type Sql } from 'postgres';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-import { consumeBadgeSpin, grantWelcomeEntitlement, publicBadgeSpinResult, type BadgeSpinResult } from '../src/lib/badges';
+import { consumeAdminBadgeSpin, consumeBadgeSpin, grantWelcomeEntitlement, publicBadgeSpinResult, type BadgeSpinResult } from '../src/lib/badges';
 
 const rehearsalUrl = process.env.SOLSTREAK_REHEARSAL_DATABASE_URL;
 const PROJECT_REF = 'ugijqdapnsuefnbldlpt';
@@ -87,7 +87,7 @@ describe('PostgreSQL cosmetic badge ledger', () => {
       }
       const migrations = await Promise.all([
         '002_network_profiles.sql', '003_transaction_submissions.sql',
-        '004_api_rate_limits.sql', '005_cosmetic_badges.sql',
+        '004_api_rate_limits.sql', '005_cosmetic_badges.sql', '006_devnet_admin_lab.sql',
       ].map(name => readFile(new URL(`./migrations/${name}`, import.meta.url), 'utf8')));
       for (const migration of migrations) await migrationSql.unsafe(migration).simple();
       await migrationSql.unsafe(migrations.at(-1)!).simple();
@@ -237,5 +237,78 @@ describe('PostgreSQL cosmetic badge ledger', () => {
       now: new Date('2026-08-30T12:00:00Z') }))).rejects.toThrow();
     expect((await sql!<{ status: string }[]>`SELECT status FROM spin_entitlements WHERE privy_user_id = ${userId}`)[0]?.status).toBeUndefined();
     expect((await sql!<{ count: number }[]>`SELECT count(*)::int AS count FROM spins WHERE privy_user_id = ${userId}`)[0].count).toBe(0);
+  });
+
+  it('persists one atomic Devnet admin result without consuming normal entitlements', async () => {
+    const userId = `${namespace}_admin`;
+    const adminWallet = 'Config1111111111111111111111111111111111111';
+    await sql!`INSERT INTO users (privy_user_id, wallet_address) VALUES (${userId}, ${adminWallet})`;
+    await sql!`INSERT INTO spin_entitlements
+      (network_profile, privy_user_id, wallet_address, source, source_reference)
+      VALUES ('devnet', ${userId}, ${adminWallet}, 'streak', 'preserved')`;
+    await expect(sql!`INSERT INTO spin_entitlements
+      (network_profile, privy_user_id, wallet_address, source, source_reference, status, consumed_at)
+      VALUES ('mainnet', ${userId}, ${adminWallet}, 'admin_test', 'blocked', 'consumed', now())`
+    ).rejects.toMatchObject({ code: '23514' });
+
+    const normal = await sql!.begin(tx => consumeBadgeSpin(tx, {
+      profile: 'devnet', userId, walletAddress: adminWallet, spinDay: '2026-09-03',
+      requestKey: '423e4567-e89b-42d3-a456-426614173999', now: new Date('2026-09-03T11:59:00Z'),
+      draw: () => 'badge_bronze',
+    }));
+    expect(normal).toMatchObject({ source: 'welcome_demo', badgeCode: 'BRONZE', awardCount: 1 });
+
+    let drawCalls = 0;
+    const run = () => sql!.begin(tx => consumeAdminBadgeSpin(tx, {
+      profile: 'devnet', userId, walletAddress: adminWallet, spinDay: '2026-09-03',
+      requestKey: '423e4567-e89b-42d3-a456-426614174000', now: new Date('2026-09-03T12:00:00Z'),
+      draw: () => { drawCalls += 1; return 'badge_silver'; },
+    }));
+    const results = await Promise.all(Array.from({ length: 8 }, () => track(run())));
+    expect(results.every(value => value.badgeCode === 'SILVER' && value.source === 'admin_test')).toBe(true);
+    for (const replay of results) {
+      expect(publicBadgeSpinResult(replay)).toStrictEqual(publicBadgeSpinResult(results[0]));
+    }
+    expect(drawCalls).toBe(1);
+    expect((await sql!<{ count: number }[]>`SELECT count(*)::int AS count FROM spins
+      WHERE privy_user_id = ${userId} AND source = 'admin_test'`)[0].count).toBe(1);
+    expect((await sql!<{ count: number }[]>`SELECT count(*)::int AS count FROM badge_awards
+      WHERE privy_user_id = ${userId}`)[0].count).toBe(2);
+    expect((await sql!<{ count: number }[]>`SELECT count(*)::int AS count FROM spin_entitlements
+      WHERE privy_user_id = ${userId} AND source = 'admin_test' AND status = 'available'`)[0].count).toBe(0);
+    expect((await sql!<{ status: string }[]>`SELECT status FROM spin_entitlements
+      WHERE privy_user_id = ${userId} AND source = 'streak'`)[0].status).toBe('available');
+
+    const replay = await sql!.begin(tx => consumeAdminBadgeSpin(tx, {
+      profile: 'devnet', userId, walletAddress: adminWallet, spinDay: '2026-09-03',
+      requestKey: '423e4567-e89b-42d3-a456-426614174000', now: new Date('2026-09-03T12:00:30Z'),
+      draw: () => { throw new Error('admin replay must not draw again'); },
+    }));
+    expect(publicBadgeSpinResult(replay)).toStrictEqual(publicBadgeSpinResult(results[0]));
+    expect((await sql!<{ count: number }[]>`SELECT count(*)::int AS count FROM spins
+      WHERE privy_user_id = ${userId}`)[0].count).toBe(2);
+
+    const second = await sql!.begin(tx => consumeAdminBadgeSpin(tx, {
+      profile: 'devnet', userId, walletAddress: adminWallet, spinDay: '2026-09-03',
+      requestKey: '423e4567-e89b-42d3-a456-426614174001', now: new Date('2026-09-03T12:01:00Z'),
+      draw: () => 'badge_silver',
+    }));
+    expect(second.awardCount).toBe(2);
+    expect((await sql!<{ count: number }[]>`SELECT count(*)::int AS count FROM spins
+      WHERE privy_user_id = ${userId} AND source = 'admin_test'`)[0].count).toBe(2);
+    expect((await sql!<{ count: number }[]>`SELECT count(*)::int AS count FROM badge_awards
+      WHERE privy_user_id = ${userId}`)[0].count).toBe(3);
+    expect((await sql!<{ award_count: number }[]>`SELECT award_count FROM user_badges
+      WHERE privy_user_id = ${userId} AND badge_code = 'SILVER'`)[0].award_count).toBe(2);
+
+    await expect(sql!.begin(tx => consumeAdminBadgeSpin(tx, {
+      profile: 'devnet', userId, walletAddress: adminWallet, spinDay: '2026-09-03',
+      requestKey: '423e4567-e89b-42d3-a456-426614174002', now: new Date('2026-09-03T12:02:00Z'),
+      draw: () => 'invalid' as never,
+    }))).rejects.toThrow();
+    expect((await sql!<{ count: number }[]>`SELECT count(*)::int AS count FROM spins
+      WHERE privy_user_id = ${userId}`)[0].count).toBe(3);
+    expect((await sql!<{ count: number }[]>`SELECT count(*)::int AS count FROM spin_entitlements
+      WHERE privy_user_id = ${userId} AND source = 'admin_test'`)[0].count).toBe(2);
   });
 });

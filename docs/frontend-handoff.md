@@ -47,7 +47,7 @@ Explorer links must use `transactionExplorerUrl(signature, ACTIVE_NETWORK)`. Dev
 
 ## Wheel and cosmetic badges
 
-Entitlement sources are `welcome_demo` and `streak`.
+Normal-user entitlement sources are `welcome_demo` and `streak`. The Devnet-only Admin Lab additionally persists `admin_test` as an already-consumed audit row; it never consumes or creates an available normal-user entitlement.
 
 - `welcome_demo` is granted only on Devnet, once per Privy user. Reload, logout/login, or wallet recovery does not grant another. It creates no deposit or streak.
 - `streak` retains backend streak eligibility and daily source-reference behavior.
@@ -57,6 +57,14 @@ Entitlement sources are `welcome_demo` and `streak`.
 The catalog is `BRONZE`, `SILVER`, `GOLD`, `DIAMOND`, `JACKPOT`. Every badge is cosmetic, has no financial value, and is not transferable or redeemable. Duplicate awards retain history and increment `awardCount`; they do not create duplicate ownership rows. A replay with the same request key returns the persisted canonical spin result and does not draw again.
 
 Profile concepts map to the current API fields as follows: active profile → `networkProfile`; collection → `badges`; history → `recentHistory`; available entitlements → `availableSpinEntitlements`. Do not invent `activeProfile` or `collection` fields.
+
+Badge collection, history, wheel results, and Admin Lab results share the client-safe artwork catalog in `src/lib/badgeArtwork.ts`. Jackpot wheel segments may show `Chest.png`, but persisted result and collection artwork use `Jackpot.png`. No probability or draw logic belongs in that client catalog.
+
+## Devnet Admin Lab
+
+The dashboard probes `GET /api/admin/metrics`; it renders Admin Lab controls only after the backend authenticates the Privy user, exact-matches the server allowlist, and confirms the active profile is Devnet. The client never receives the allowlist. Admin streak updates target only the authenticated embedded wallet, and admin test spins remain server-random, persisted, atomic, rate-limited, and idempotent.
+
+Admin users use the ordinary Deposit/Withdraw flow. They receive no balance, safety-flag, signature, RPC, or on-chain verification bypass.
 
 ## Persistence and resilience
 

@@ -34,6 +34,24 @@ export function spinWeighted(): WheelPrizeId {
   return entries[entries.length - 1][0];
 }
 
+const ADMIN_TEST_PRIZES = [
+  ['badge_bronze', 40],
+  ['badge_silver', 27],
+  ['badge_gold', 23],
+  ['badge_diamond', 5],
+  ['jackpot_usdc', 5],
+] as const satisfies readonly (readonly [WheelPrizeId, number])[];
+
+/** Devnet Admin Lab draw; still server-controlled and cosmetic-only. */
+export function spinAdminWeighted(): WheelPrizeId {
+  let roll = Math.random() * 100;
+  for (const [id, weight] of ADMIN_TEST_PRIZES) {
+    roll -= weight;
+    if (roll < 0) return id;
+  }
+  return 'jackpot_usdc';
+}
+
 export function prizeLabel(id: WheelPrizeId): string {
   return WHEEL_PRIZES[id].label;
 }

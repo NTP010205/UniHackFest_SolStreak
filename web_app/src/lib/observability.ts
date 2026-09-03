@@ -10,6 +10,9 @@ export const OPERATIONAL_EVENT_NAMES = [
   'database.unavailable',
   'badge.awarded', 'badge.replayed', 'badge.failed',
   'welcome_spin.granted', 'welcome_spin.consumed',
+  'admin.spin.completed', 'admin.spin.failed',
+  'admin.streak.updated', 'admin.streak.failed',
+  'admin.metrics.viewed', 'admin.metrics.failed',
 ] as const;
 
 export type OperationalEventName = typeof OPERATIONAL_EVENT_NAMES[number];
