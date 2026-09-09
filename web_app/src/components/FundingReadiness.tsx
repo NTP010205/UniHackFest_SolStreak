@@ -8,7 +8,10 @@ import { truncateAddress } from '@/lib/format';
 import { copyEmbeddedWalletAddress } from '@/lib/walletClipboard';
 import { ACTIVE_NETWORK } from '@/lib/networkProfile';
 
-export default function FundingReadiness({ wallet }: { wallet: ConnectedStandardSolanaWallet }) {
+export default function FundingReadiness({ wallet, className = '' }: {
+  wallet: ConnectedStandardSolanaWallet;
+  className?: string;
+}) {
   const { balances, loading, error, updatedAt, refresh } = useFundingReadiness(wallet.address);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
 
@@ -22,7 +25,7 @@ export default function FundingReadiness({ wallet }: { wallet: ConnectedStandard
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-white/5 bg-white/[0.03] p-5 shadow-card sm:p-6" aria-labelledby="funding-readiness-title">
+    <section className={`rounded-2xl border border-white/5 bg-white/[0.03] p-5 shadow-card sm:p-6 ${className}`} aria-labelledby="funding-readiness-title">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="funding-readiness-title" className="font-display text-lg font-semibold text-white">Funding readiness</h2>

@@ -6,7 +6,7 @@ export function canStartManualSpin(phase: WheelSpinPhase, enabled: boolean) {
 
 export function spinRequestFor(isDevnetAdmin: boolean, walletAddress: string, requestKey: string) {
   return isDevnetAdmin
-    ? { path: '/api/admin/spin', requestKey, body: {} }
+    ? { path: '/api/admin/spin', requestKey, body: { wallet: walletAddress } }
     : { path: '/api/wheel/spin', requestKey, body: { wallet: walletAddress } };
 }
 

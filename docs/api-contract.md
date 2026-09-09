@@ -10,6 +10,12 @@ The active server profile is authoritative. Public routes never accept a profile
 
 ## Frontend-safe endpoints
 
+### `POST /api/activity/heartbeat`
+
+Strict body: `{ wallet: string }`. The route authenticates the Privy identity, proves that the requested Solana wallet is linked to it, rate-limits the request, and records only the active network profile, wallet, and server timestamp. It never accepts a client-supplied user ID or timestamp. Success is `200 { networkProfile; status: 'active'; lastSeenAt }`.
+
+The authenticated application shell sends this best-effort heartbeat every 30 seconds only while the tab is visible. It does not sign, build, broadcast, reconcile, or unlock a transaction. Failure never blocks Deposit/Withdraw.
+
 ### `GET /api/streak/status?wallet=<Solana address>`
 
 - Auth: Privy plus linked-wallet verification.
@@ -137,11 +143,29 @@ type SubmissionRecord = {
 
 The recovery query returns only unresolved statuses from storage, even though the public type above lists all lifecycle values that a tracked record can carry.
 
+### `POST /api/transactions/submissions/reconcile`
+
+Strict body:
+
+```ts
+{ wallet: string; kind: 'deposit' | 'withdraw' }
+```
+
+The route first authenticates the Privy identity and proves that `wallet` is linked to it, then rate-limits and claims at most five unresolved records matching that exact user, wallet, transaction kind, and active network profile. It queries existing signatures and may update their lifecycle/report state; it never builds, signs, or broadcasts a transaction and never processes another user's row. The Transaction Card explicitly runs the owned Deposit and Withdraw checks together so one unresolved kind cannot remain hidden while locking the other.
+
+Success returns sanitized counters: `claimed`, `pending`, `reconciled`, `reportPending`, `failed`, `expired`, and `unknown`. The client refetches unresolved records after the check. Only a terminal result unlocks a new transaction; a still-pending or unknown signature remains locked against accidental resubmission.
+
 ## Devnet Admin Lab endpoints
 
-All Admin Lab routes authenticate through the normal Privy identity-token flow, exact-match the server-only `SOLSTREAK_ADMIN_PRIVY_USER_IDS` allowlist, and reject any active profile other than Devnet. Missing/empty allowlist, non-admin identity, and Mainnet all return `403 ADMIN_FORBIDDEN` before rate-limit or business database mutation. The allowlist is never returned to clients.
+All Admin Lab routes authenticate through the normal Privy identity-token flow, require the client-selected wallet in the query or strict JSON body, prove that exact wallet is linked to the identity, then exact-match either the server-only `SOLSTREAK_ADMIN_PRIVY_USER_IDS` or `SOLSTREAK_ADMIN_WALLET_ADDRESSES` allowlist. This avoids accidentally authorizing against another linked wallet when a Privy account contains more than one. They reject any active profile other than Devnet. Missing/empty allowlists, non-admin identity, and Mainnet all return `403 ADMIN_FORBIDDEN` before rate-limit or business database mutation. Allowlists are never returned to clients. A valid wallet placed in the legacy Privy-ID variable is accepted for local-config compatibility, but new deployments should use the dedicated wallet variable.
+
+### `GET /api/admin/access`
+
+Requires a canonical active wallet as `?wallet=<base58-address>`. This lightweight capability check verifies the Privy token, exact linked wallet, Devnet profile, and server allowlist without querying application tables. It returns `200 { isAdmin: true; networkProfile: 'devnet' }` only when the Admin navigation may be revealed; other users receive `403` and never see the Admin menu item.
 
 ### `GET /api/admin/metrics`
+
+Requires a canonical active wallet as `?wallet=<base58-address>`.
 
 Returns `200` only for an authenticated Devnet admin:
 
@@ -162,19 +186,40 @@ Returns `200` only for an authenticated Devnet admin:
 
 Only aggregate Devnet values are returned. Wallet addresses, Privy IDs, allowlists, secrets, and Mainnet data are excluded.
 
+### `GET /api/admin/users`
+
+Requires a canonical active wallet as `?wallet=<base58-address>`.
+
+Returns `200` only for an authenticated Devnet admin:
+
+```ts
+{
+  isAdmin: true;
+  networkProfile: 'devnet';
+  users: Array<{
+    walletLabel: string;
+    currentStreak: number;
+    longestStreak: number;
+    totalDepositedUsdc: number;
+    lastActiveAt: string;
+    isOnline: boolean;
+  }>;
+}
+```
+
+This endpoint is read-only and limited to at most 100 registered application users in the current Devnet deployment. It returns an abbreviated wallet label plus Devnet-only activity/streak summaries; accounts without Devnet activity appear with zero values. A server-recorded heartbeat within the last 75 seconds produces `isOnline: true`. Online users sort first, followed by most recent activity and then streak. It never returns email addresses, Privy IDs, full wallet addresses, allowlists, database details, secrets, or Mainnet activity. Admins cannot update another user's streak or identity through this route.
+
 ### `POST /api/admin/spin`
 
-Requires JSON `{}` and a UUID `Idempotency-Key`. Success uses the ordinary public badge-spin result contract, with `source: 'admin_test'`. The server uses cosmetic weights Bronze 40%, Silver 27%, Gold 23%, Diamond 5%, Jackpot 5%. A replay returns the same persisted result; the operation creates one consumed audit entitlement, one spin, one award, and updates badge ownership atomically without consuming `welcome_demo` or `streak` entitlements.
+Strict body: `{ wallet }` for the active linked wallet.
+
+Also requires a UUID `Idempotency-Key`. Success uses the ordinary public badge-spin result contract, with `source: 'admin_test'`. The server uses cosmetic weights Bronze 40%, Silver 27%, Gold 23%, Diamond 5%, Jackpot 5%. A replay returns the same persisted result; the operation creates one consumed audit entitlement, one spin, one award, and updates badge ownership atomically without consuming `welcome_demo` or `streak` entitlements.
 
 ### `POST /api/admin/streak`
 
-Strict body:
+Strict body: `{ wallet, currentStreak }` for the active linked wallet.
 
-```ts
-{ currentStreak: number } // integer, 0–365
-```
-
-Success: `200 { currentStreak: number; longestStreak: number }`. The server derives Privy user and wallet from the authenticated identity; arbitrary identity/wallet fields are rejected. This changes only the admin's Devnet demo streak and does not change normal streak calculation behavior.
+`currentStreak` must be an integer from 0–365. Success: `200 { currentStreak: number; longestStreak: number }`. The server derives the Privy user from the verified token and accepts the wallet only after proving that exact address is linked to that identity; arbitrary user or extra fields are rejected. This changes only the authenticated admin's Devnet demo streak and does not change normal streak calculation behavior.
 
 ## Internal-only endpoint
 

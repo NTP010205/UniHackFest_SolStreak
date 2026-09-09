@@ -148,6 +148,52 @@ export async function claimSubmissionBatch(
   return rows.map(submission);
 }
 
+/**
+ * Claims unresolved submissions for one authenticated identity only.
+ * This powers the user-triggered status check and must never process another
+ * wallet's records. Unlike the scheduler, an explicit check may retry a
+ * non-processing record before its backoff expires; the API rate limiter
+ * bounds those requests. Active processing claims remain protected.
+ */
+export async function claimUserSubmissionBatch(
+  userId: string,
+  walletAddress: string,
+  kind: 'deposit' | 'withdraw',
+  networkProfile: SolanaNetworkProfileName,
+  limit: number,
+  claimToken: string,
+  now = new Date(),
+): Promise<SubmissionRecord[]> {
+  const sql = db();
+  await ensureUser(sql, userId, walletAddress);
+  const rows = await sql<SubmissionRow[]>`
+    WITH candidates AS (
+      SELECT network_profile, signature,
+        (lifecycle_status = 'processing') AS reclaimed_stale
+      FROM transaction_submissions
+      WHERE privy_user_id = ${userId}
+        AND wallet_address = ${walletAddress}
+        AND transaction_kind = ${kind}
+        AND network_profile = ${networkProfile}
+        AND (
+          lifecycle_status IN ('submitted', 'pending', 'unknown', 'confirmed_unreported', 'report_pending')
+          OR (lifecycle_status = 'processing' AND claimed_at < ${new Date(now.getTime() - 5 * 60_000)})
+        )
+      ORDER BY submitted_at ASC
+      FOR UPDATE SKIP LOCKED
+      LIMIT ${Math.max(1, Math.min(limit, 5))}
+    )
+    UPDATE transaction_submissions AS submission
+    SET lifecycle_status = 'processing', claim_token = ${claimToken}, claimed_at = ${now},
+        attempt_count = attempt_count + 1, updated_at = ${now}
+    FROM candidates
+    WHERE submission.network_profile = candidates.network_profile
+      AND submission.signature = candidates.signature
+    RETURNING submission.*, candidates.reclaimed_stale
+  `;
+  return rows.map(submission);
+}
+
 export async function updateClaimedSubmission(
   record: Pick<SubmissionRecord, 'networkProfile' | 'signature'>,
   claimToken: string,
@@ -375,11 +421,18 @@ export async function devnetAdminMetrics() {
     streak_15_29: number; streak_30_plus: number;
   }[]>`
     WITH devnet_profiles AS (
-      SELECT privy_user_id, wallet_address FROM spin_entitlements WHERE network_profile = 'devnet'
+      SELECT privy_user_id, wallet_address FROM users
+      UNION SELECT privy_user_id, wallet_address FROM spin_entitlements WHERE network_profile = 'devnet'
       UNION SELECT app_user.privy_user_id, deposit.wallet_address FROM deposits deposit
         JOIN users app_user USING (wallet_address) WHERE deposit.network_profile = 'devnet'
       UNION SELECT app_user.privy_user_id, streak.wallet_address FROM streaks streak
         JOIN users app_user USING (wallet_address) WHERE streak.network_profile = 'devnet'
+      UNION SELECT privy_user_id, wallet_address FROM transaction_submissions
+        WHERE network_profile = 'devnet'
+      UNION SELECT privy_user_id, wallet_address FROM spins
+        WHERE network_profile = 'devnet' AND privy_user_id IS NOT NULL
+      UNION SELECT privy_user_id, wallet_address FROM badge_awards
+        WHERE network_profile = 'devnet'
     ), active_profiles AS (
       SELECT DISTINCT app_user.privy_user_id FROM users app_user
       JOIN deposits deposit USING (wallet_address)
@@ -413,6 +466,87 @@ export async function devnetAdminMetrics() {
     totalBadgeAwards: summary.total_badge_awards,
     uniqueBadgeOwnerships: summary.unique_badge_ownerships,
   };
+}
+
+export interface DevnetAdminUserSummary {
+  walletLabel: string;
+  currentStreak: number;
+  longestStreak: number;
+  totalDepositedUsdc: number;
+  lastActiveAt: Date;
+  isOnline: boolean;
+}
+
+function abbreviatedWallet(address: string) {
+  return address.length <= 14 ? address : `${address.slice(0, 6)}…${address.slice(-6)}`;
+}
+
+/** Read-only, Devnet-scoped rows for the Admin Lab. No email or Privy ID leaves the server. */
+export async function devnetAdminUsers(): Promise<DevnetAdminUserSummary[]> {
+  const rows = await db()<{
+    wallet_address: string;
+    current_streak: number;
+    longest_streak: number;
+    total_deposited_base_units: string;
+    last_active_at: Date;
+    is_online: boolean;
+  }[]>`
+    WITH deposit_stats AS (
+      SELECT wallet_address, sum(amount_base_units)::text AS total_deposited_base_units,
+        max(block_time) AS last_deposit_at
+      FROM deposits WHERE network_profile = 'devnet' AND verified = true
+      GROUP BY wallet_address
+    ), spin_stats AS (
+      SELECT wallet_address, max(created_at) AS last_spin_at
+      FROM spins WHERE network_profile = 'devnet'
+      GROUP BY wallet_address
+    )
+    SELECT app_user.wallet_address,
+      coalesce(streak.current_streak, 0)::int AS current_streak,
+      coalesce(streak.longest_streak, 0)::int AS longest_streak,
+      coalesce(deposit.total_deposited_base_units, '0') AS total_deposited_base_units,
+      greatest(app_user.created_at, activity.last_seen_at, deposit.last_deposit_at, spin.last_spin_at) AS last_active_at,
+      coalesce(activity.last_seen_at >= now() - interval '75 seconds', false) AS is_online
+    FROM users app_user
+    LEFT JOIN user_activity activity
+      ON activity.network_profile = 'devnet' AND activity.wallet_address = app_user.wallet_address
+    LEFT JOIN streaks streak
+      ON streak.network_profile = 'devnet' AND streak.wallet_address = app_user.wallet_address
+    LEFT JOIN deposit_stats deposit
+      ON deposit.wallet_address = app_user.wallet_address
+    LEFT JOIN spin_stats spin
+      ON spin.wallet_address = app_user.wallet_address
+    ORDER BY is_online DESC, last_active_at DESC, current_streak DESC, app_user.wallet_address
+    LIMIT 100
+  `;
+  return rows.map(row => ({
+    walletLabel: abbreviatedWallet(row.wallet_address),
+    currentStreak: row.current_streak,
+    longestStreak: row.longest_streak,
+    totalDepositedUsdc: Number(BigInt(row.total_deposited_base_units)) / 1_000_000,
+    lastActiveAt: row.last_active_at,
+    isOnline: row.is_online,
+  }));
+}
+
+/** Records authenticated dashboard presence without exposing identity data to the client. */
+export async function recordUserActivity(
+  userId: string,
+  walletAddress: string,
+  networkProfile: SolanaNetworkProfileName,
+  now = new Date(),
+) {
+  return db().begin(async (sql) => {
+    await ensureUser(sql, userId, walletAddress);
+    const [activity] = await sql<{ last_seen_at: Date }[]>`
+      INSERT INTO user_activity (network_profile, wallet_address, last_seen_at)
+      VALUES (${networkProfile}, ${walletAddress}, ${now})
+      ON CONFLICT (network_profile, wallet_address)
+      DO UPDATE SET last_seen_at = GREATEST(user_activity.last_seen_at, EXCLUDED.last_seen_at)
+      RETURNING last_seen_at
+    `;
+    return activity.last_seen_at;
+  });
 }
 
 export async function badgeProfileFor(

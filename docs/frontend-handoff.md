@@ -10,6 +10,12 @@ The currently selected profile is Devnet. Mainnet constants and data namespaces 
 
 `useSolStreakWallet` combines Privy authentication readiness and Solana wallet readiness. Wallet UI must wait for `ready`; signed-out users return to `/`; wallet actions additionally require `authenticated` and the selected Privy embedded Solana wallet. Do not select an extension or EVM wallet. The embedded address may be truncated for display, but copy actions copy the full address. Logout/login restores the same embedded wallet through Privy; durable backend records are keyed by Privy identity, wallet, and network where applicable.
 
+The selected embedded wallet must also appear in the currently authenticated Privy user's Solana `linkedAccounts`. A `sessionKey` binds client state to that exact Privy user and wallet so an old wallet, verification result, balance, badge profile, admin response, or transaction state cannot survive an account switch.
+
+Privy hook functions and refreshed identity-token values are not effect identity keys. Transaction lifecycles reset only when the transaction kind or authenticated `sessionKey` changes; the latest signing function, wallet object, success callback, and token are read through refs. Portfolio, badge, and Admin Lab loaders likewise react to wallet/token availability rather than a rotating token value. This prevents authenticated dashboard render loops from blocking navigation.
+
+On Devnet, Deposit and Withdraw require a successful Privy message signature for the active `sessionKey`. This verification signature does not create, sign, or broadcast a transaction. It resets on logout, login as another user, or embedded-wallet change. Every real transaction still opens its own Privy transaction-signature prompt after all safety checks pass.
+
 Authenticated API calls send the Privy identity token in `privy-id-token`. The server verifies issuer, audience, expiry, and that the requested Solana wallet appears in `linked_accounts`. Never log or render the token.
 
 ## Funding readiness
@@ -43,7 +49,13 @@ The transaction surface must represent the phases from `transactionLifecycle.ts`
 
 There is one broadcast call with `maxRetries: 0`. After a signature exists, never rebuild, resign, resend, or “try another RPC”. Query signature status and retry only tracking/reporting with the same signature. UI messages are advisory; only RPC and backend verification establish success.
 
+For an unresolved signature, the card exposes a kind-specific **Check transaction status** action. It calls the authenticated user reconciliation endpoint, which checks only the already-recorded signature. Pending/unknown stays locked; reconciled, failed, or expired becomes terminal and safely unlocks a fresh transaction. This status check does not open a wallet prompt or resend funds.
+
+The Deposit Success video is presentation-only and is keyed by the newly confirmed on-chain signature, not by observing a transient React `confirmed` phase. A signature is registered once so an immediate transition to `report_pending` cannot suppress the animation and a later report retry cannot replay it.
+
 Explorer links must use `transactionExplorerUrl(signature, ACTIVE_NETWORK)`. Devnet links include `?cluster=devnet`; Mainnet links omit a cluster query. Never build a Mainnet explorer link for a Devnet signature.
+
+Before a Devnet deposit reaches the signing prompt, the client verifies that the active wallet has an initialized Circle Devnet USDC token account with enough balance. A missing account, insufficient balance, absent withdraw position, cancellation, or simulation failure is rendered as a short sanitized message; raw RPC logs and internal program details are not displayed.
 
 ## Wheel and cosmetic badges
 
@@ -62,7 +74,15 @@ Badge collection, history, wheel results, and Admin Lab results share the client
 
 ## Devnet Admin Lab
 
-The dashboard probes `GET /api/admin/metrics`; it renders Admin Lab controls only after the backend authenticates the Privy user, exact-matches the server allowlist, and confirms the active profile is Devnet. The client never receives the allowlist. Admin streak updates target only the authenticated embedded wallet, and admin test spins remain server-random, persisted, atomic, rate-limited, and idempotent.
+The dashboard probes `GET /api/admin/metrics` with the active embedded wallet. It renders Admin Lab controls only after the backend authenticates the Privy user, proves that exact wallet linkage, exact-matches the server Privy-ID or wallet allowlist, and confirms the active profile is Devnet. The client never receives either allowlist. A temporary read-only user-table failure no longer hides an already-authorized Admin Lab. Admin streak updates target only the authenticated embedded wallet, and admin test spins remain server-random, persisted, atomic, rate-limited, and idempotent.
+
+The Admin Lab also loads a read-only user table from `GET /api/admin/users`. It may show only the server-abbreviated wallet label, current and longest streak, verified Devnet deposit total, last activity time, and an approximate online flag. It provides no edit action and does not expose email, Privy ID, full wallet address, database details, or Mainnet data.
+
+The authenticated application shell posts a best-effort heartbeat every 30 seconds while its tab is visible, including Home and Dashboard. Admin Lab refreshes its read-only metrics/table every 15 seconds only after server authorization. A heartbeat no older than 75 seconds is shown as online; online and most-recently-active wallets sort first. Wallets without recorded Devnet activity remain visible with zero deposit/streak values. Presence never unlocks a transaction and never bypasses Privy wallet verification.
+
+Navigation calls the lightweight, database-free `GET /api/admin/access` capability check for the active embedded wallet. The Admin link is rendered only after a `200` server confirmation, so ordinary authenticated users do not see it. Authorization remains entirely server-side and non-admin users never receive metrics or user rows.
+
+For authenticated admins, Admin Lab appears directly after the portfolio summary and exposes a shortcut to the dedicated `/admin` workspace. Opening `/admin` does not trust client configuration: its API calls repeat the same server authorization and show a clear denied/unavailable state. The only writable demo controls remain scoped to the admin's own authenticated wallet (demo streak and persisted cosmetic test spins); rows belonging to other Devnet users remain strictly read-only.
 
 Admin users use the ordinary Deposit/Withdraw flow. They receive no balance, safety-flag, signature, RPC, or on-chain verification bypass.
 
@@ -71,6 +91,8 @@ Admin users use the ordinary Deposit/Withdraw flow. They receive no balance, saf
 Backend deposits, streaks, submissions, entitlements, spins, awards, and badge aggregates survive reload/logout/login. The client keeps only minimal unresolved submission references locally; it never stores a raw signed transaction. On login/reload, fetch unresolved submissions and badge/profile data again.
 
 Every data surface needs loading, empty, stale/error, and retry rendering. A position RPC failure is represented by `currentPositionUsdc: null` plus `positionUnavailable: true`; it must not erase streak data. For API 429, preserve the current view and respect `Retry-After`. For sanitized 503 responses, show temporary service unavailability without exposing internal detail. Capture `x-request-id` for support diagnostics.
+
+The dashboard reuses the landing page's editorial hierarchy and the existing SolStreak artwork only: a compact vault hero, portfolio summary, wallet-readiness step, daily transaction/streak/wheel loop, Admin Lab, and cosmetic collection. The Streak Tracker presents the same backend-provided seven-day history as a tiered command center with milestone progress, current-tier artwork, secured-day states, and a clear today status. The interactive particle background remains active, while motion respects `prefers-reduced-motion`.
 
 ## Backend invariants the frontend must not implement
 

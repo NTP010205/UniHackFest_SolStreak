@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIdentityToken } from '@privy-io/react-auth';
 
 export interface StreakDay {
@@ -32,26 +32,43 @@ export function usePortfolio(walletAddress: string | undefined) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
+  const identityTokenRef = useRef(identityToken);
+  identityTokenRef.current = identityToken;
+  const hasIdentityToken = Boolean(identityToken);
 
   const refresh = useCallback(async () => {
-    if (!walletAddress || !identityToken) return;
+    const version = ++requestVersion.current;
+    const token = identityTokenRef.current;
+    if (!walletAddress || !token) {
+      setData(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/streak/status?wallet=${encodeURIComponent(walletAddress)}`, {
-        headers: { 'privy-id-token': identityToken },
+        headers: { 'privy-id-token': token },
       });
       if (!res.ok) throw new Error(`Failed to load portfolio (HTTP ${res.status})`);
-      setData((await res.json()) as DashboardData);
+      const nextData = await res.json() as DashboardData;
+      if (version !== requestVersion.current) return;
+      setData(nextData);
       setError(null);
     } catch (err) {
+      if (version !== requestVersion.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load portfolio');
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
-  }, [walletAddress, identityToken]);
+  }, [walletAddress, hasIdentityToken]);
 
   useEffect(() => {
+    setData(null);
+    setError(null);
     void refresh();
+    return () => { requestVersion.current += 1; };
   }, [refresh]);
 
   return { data, loading, error, refresh };

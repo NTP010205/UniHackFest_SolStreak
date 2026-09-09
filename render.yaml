@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: solstreak
+    runtime: node
+    plan: free
+    rootDir: web_app
+    buildCommand: npm ci && npm run build -- --webpack
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeployTrigger: "off"
+    envVars:
+      - key: NODE_VERSION
+        value: 24.10.0
+      - key: NEXT_PUBLIC_SOLANA_NETWORK_PROFILE
+        value: devnet
+      - key: NEXT_PUBLIC_ENABLE_DEVNET_TRANSACTIONS
+        value: "true"
+      - key: NEXT_PUBLIC_ENABLE_MAINNET_TRANSACTIONS
+        value: "false"
+      - key: NEXT_PUBLIC_PRIVY_APP_ID
+        sync: false
+      - key: NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL
+        sync: false
+      - key: NEXT_PUBLIC_SOLANA_DEVNET_RPC_SUBSCRIPTIONS_URL
+        sync: false
+      - key: SOLANA_DEVNET_RPC_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SOLSTREAK_ADMIN_PRIVY_USER_IDS
+        sync: false
+      - key: SOLSTREAK_ADMIN_WALLET_ADDRESSES
+        sync: false
+      - key: RECONCILIATION_SECRET
+        sync: false

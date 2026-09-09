@@ -1,7 +1,11 @@
 import { PublicKey } from '@solana/web3.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { buildDevnetEarnInstructions, buildDevnetFullWithdrawInstructions } from './jupiterDevnet';
+import {
+  assertDevnetDepositBalance,
+  buildDevnetEarnInstructions,
+  buildDevnetFullWithdrawInstructions,
+} from './jupiterDevnet';
 import { resolveNetworkProfile } from './networkProfile';
 
 const profile = resolveNetworkProfile({ NEXT_PUBLIC_SOLANA_NETWORK_PROFILE: 'devnet' }).profile;
@@ -96,5 +100,11 @@ describe('verified Jupiter Earn Devnet instruction fixtures', () => {
   it('keeps full withdraw isolated from the Mainnet profile', () => {
     const mainnet = resolveNetworkProfile({}).profile;
     expect(() => buildDevnetFullWithdrawInstructions(signer, 1n, mainnet)).toThrow(/Devnet profile/);
+  });
+
+  it('requires the configured Circle Devnet USDC account and enough balance before deposit', () => {
+    expect(() => assertDevnetDepositBalance(null, 1_000_000n)).toThrow(/token account/i);
+    expect(() => assertDevnetDepositBalance(999_999n, 1_000_000n)).toThrow(/not enough/i);
+    expect(() => assertDevnetDepositBalance(1_000_000n, 1_000_000n)).not.toThrow();
   });
 });

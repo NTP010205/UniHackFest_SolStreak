@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Connection, PublicKey } from '@solana/web3.js';
 
 import { loadFundingBalances, type FundingBalances, type FundingRpc } from '@/lib/fundingReadiness';
@@ -14,6 +14,7 @@ export function useFundingReadiness(walletAddress: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const requestVersion = useRef(0);
 
   const rpc = useMemo<FundingRpc | null>(() => {
     if (!SOLANA_RPC_URL || !USDC_MINT) return null;
@@ -43,7 +44,9 @@ export function useFundingReadiness(walletAddress: string) {
   }, []);
 
   const refresh = useCallback(async () => {
+    const version = ++requestVersion.current;
     if (!rpc) {
+      setBalances(null);
       setError('Balance RPC configuration is not ready.');
       return;
     }
@@ -51,18 +54,26 @@ export function useFundingReadiness(walletAddress: string) {
     setError(null);
     try {
       const result = await loadFundingBalances(rpc, walletAddress, USDC_MINT);
+      if (version !== requestVersion.current) return;
       if (result.error) {
+        setBalances(null);
         setError(result.error);
         return;
       }
       setBalances(result.balances);
       setUpdatedAt(new Date());
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [rpc, walletAddress]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    setBalances(null);
+    setUpdatedAt(null);
+    setError(null);
+    void refresh();
+    return () => { requestVersion.current += 1; };
+  }, [refresh]);
 
   return { balances, loading, error, updatedAt, refresh };
 }

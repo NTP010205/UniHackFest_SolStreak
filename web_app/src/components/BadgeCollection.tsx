@@ -9,7 +9,7 @@ export default function BadgeCollection({ walletAddress, refreshKey = 0 }: {
 }) {
   const { data, loading, error, refresh } = useBadgeProfile(walletAddress, refreshKey);
   return (
-    <section className="rounded-2xl border border-white/5 bg-white/[0.03] p-5 shadow-card sm:p-6">
+    <section id="badges" className="rounded-2xl border border-white/5 bg-white/[0.03] p-5 shadow-card sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div><h2 className="font-display text-lg font-semibold text-white">Cosmetic Badges</h2>
           <p className="mt-1 text-xs text-slate-500">Cosmetic only · no financial value · not transferable or redeemable.</p></div>

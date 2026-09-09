@@ -16,12 +16,12 @@ export async function POST(request: Request) {
   const context = { requestId: requestIdFor(request), routeKey: API_RATE_LIMITS.adminSpin.route,
     networkProfile: ACTIVE_NETWORK.name, startedAt: Date.now() };
   try {
-    await parseJsonBody(request, adminSpinSchema);
+    const input = await parseJsonBody(request, adminSpinSchema);
     const requestKey = request.headers.get('idempotency-key');
     if (!requestKey || !IDEMPOTENCY_KEY.test(requestKey)) {
       throw new ApiRequestError('INVALID_IDEMPOTENCY_KEY', 'A valid Idempotency-Key header is required', 400);
     }
-    const identity = await requireDevnetAdmin(request, ACTIVE_NETWORK.name);
+    const identity = await requireDevnetAdmin(request, ACTIVE_NETWORK.name, input.wallet);
     await enforceApiRateLimit({ policy: API_RATE_LIMITS.adminSpin, userId: identity.userId,
       networkProfile: ACTIVE_NETWORK.name });
     const result = await recordAdminSpin(

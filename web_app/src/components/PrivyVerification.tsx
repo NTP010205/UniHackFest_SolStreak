@@ -10,6 +10,9 @@ interface Props {
   ready: boolean;
   authenticated: boolean;
   wallet: ConnectedStandardSolanaWallet | undefined;
+  sessionKey: string;
+  onVerificationChange: (verified: boolean) => void;
+  className?: string;
 }
 
 type SigningState = 'idle' | 'signing' | 'success' | 'error';
@@ -22,25 +25,45 @@ function randomNonce(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export default function PrivyVerification({ ready, authenticated, wallet }: Props) {
+export default function PrivyVerification({
+  ready,
+  authenticated,
+  wallet,
+  sessionKey,
+  onVerificationChange,
+  className = '',
+}: Props) {
   const { signMessage } = useSignMessage();
   const [hostname, setHostname] = useState<string | null>(null);
+  const [secureContext, setSecureContext] = useState(false);
   const [signingState, setSigningState] = useState<SigningState>('idle');
   const [result, setResult] = useState('No test message signed in this session.');
 
-  useEffect(() => setHostname(window.location.hostname), []);
+  useEffect(() => {
+    setHostname(window.location.hostname);
+    setSecureContext(window.isSecureContext);
+  }, []);
+
+  useEffect(() => {
+    setSigningState('idle');
+    setResult('This wallet must be verified before Deposit or Withdraw.');
+    onVerificationChange(false);
+  }, [sessionKey, onVerificationChange]);
 
   const localhost = hostname !== null && LOCAL_HOSTS.has(hostname);
-  const canSign = ready && authenticated && wallet !== undefined && localhost;
+  const supportedOrigin = localhost || secureContext;
+  const canSign = ready && authenticated && wallet !== undefined && supportedOrigin;
 
   async function signTestMessage() {
     if (!canSign || !wallet || !hostname) return;
 
+    onVerificationChange(false);
     setSigningState('signing');
     setResult('Waiting for Privy wallet approval…');
     const timestamp = new Date().toISOString();
     const message = [
       'SolStreak authentication test',
+      `Wallet: ${wallet.address}`,
       `Hostname: ${hostname}`,
       `Timestamp: ${timestamp}`,
       `Nonce: ${randomNonce()}`,
@@ -53,20 +76,22 @@ export default function PrivyVerification({ ready, authenticated, wallet }: Prop
         options: { uiOptions: { title: 'Verify your SolStreak wallet' } },
       });
       setSigningState('success');
-      setResult(`Message signed successfully at ${timestamp}.`);
+      setResult(`Wallet verified for this page session at ${timestamp}.`);
+      onVerificationChange(true);
     } catch {
       setSigningState('error');
       setResult('Message signing failed or was cancelled. No transaction was sent.');
+      onVerificationChange(false);
     }
   }
 
   return (
-    <section className="rounded-2xl border border-sky-400/20 bg-sky-500/5 p-5" aria-label="Privy verification">
+    <section className={`rounded-2xl border border-sky-400/20 bg-sky-500/5 p-5 shadow-card ${className}`} aria-label="Privy verification">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="font-display text-base font-semibold text-white">Privy verification</h2>
+          <h2 className="font-display text-base font-semibold text-white">Wallet verification</h2>
           <p className="mt-1 text-xs text-slate-400">
-            Development-only message signature gate. This does not create or send a transaction.
+            Required once per signed-in wallet session before Deposit or Withdraw. This does not send a transaction.
           </p>
         </div>
         <button
@@ -75,7 +100,7 @@ export default function PrivyVerification({ ready, authenticated, wallet }: Prop
           onClick={() => void signTestMessage()}
           className="rounded-xl bg-sky-400 px-4 py-2 text-sm font-semibold text-night-950 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {signingState === 'signing' ? 'Signing…' : 'Sign test message'}
+          {signingState === 'signing' ? 'Signing…' : signingState === 'success' ? 'Verified' : 'Verify wallet'}
         </button>
       </div>
 
@@ -100,7 +125,7 @@ export default function PrivyVerification({ ready, authenticated, wallet }: Prop
         className={`mt-4 text-xs ${signingState === 'error' ? 'text-red-300' : signingState === 'success' ? 'text-emerald-300' : 'text-slate-400'}`}
         role="status"
       >
-        {!localhost && hostname !== null ? 'Message signing is restricted to localhost. ' : ''}
+        {!supportedOrigin && hostname !== null ? 'Wallet verification requires HTTPS or localhost. ' : ''}
         {result}
       </p>
     </section>

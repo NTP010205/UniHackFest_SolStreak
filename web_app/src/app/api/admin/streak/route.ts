@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     networkProfile: ACTIVE_NETWORK.name, startedAt: Date.now() };
   try {
     const input = await parseJsonBody(request, adminStreakSchema);
-    const identity = await requireDevnetAdmin(request, ACTIVE_NETWORK.name);
+    const identity = await requireDevnetAdmin(request, ACTIVE_NETWORK.name, input.wallet);
     await enforceApiRateLimit({ policy: API_RATE_LIMITS.adminStreak, userId: identity.userId,
       networkProfile: ACTIVE_NETWORK.name });
     const result = await setAdminDemoStreak(

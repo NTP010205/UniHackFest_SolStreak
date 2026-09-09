@@ -23,7 +23,7 @@ describe('manual wheel spin flow', () => {
       path: '/api/wheel/spin', requestKey: 'uuid-1', body: { wallet: 'wallet' },
     });
     expect(spinRequestFor(true, 'wallet', 'uuid-2')).toEqual({
-      path: '/api/admin/spin', requestKey: 'uuid-2', body: {},
+      path: '/api/admin/spin', requestKey: 'uuid-2', body: { wallet: 'wallet' },
     });
   });
 
