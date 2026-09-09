@@ -1,3 +1,5 @@
+import { safeTransactionError } from './transactionSafety';
+
 export type TransactionPhase =
   | 'idle'
   | 'preparing'
@@ -99,7 +101,12 @@ export class TransactionLifecycle<TTransaction> {
       if (signature && lifetime) {
         await this.reconcile(signature, lifetime, error);
       } else {
-        this.update({ phase: isExpiredError(error) ? 'expired' : 'failed', error: message(error, 'Transaction failed.') });
+        this.update({
+          phase: isExpiredError(error) ? 'expired' : 'failed',
+          error: isExpiredError(error)
+            ? 'The transaction expired before it could be submitted.'
+            : safeTransactionError(error),
+        });
       }
     } finally {
       this.running = false;

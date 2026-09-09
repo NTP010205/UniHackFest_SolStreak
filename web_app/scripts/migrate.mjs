@@ -11,6 +11,7 @@ const transactionSubmissions = await readFile(new URL('../db/migrations/003_tran
 const apiRateLimits = await readFile(new URL('../db/migrations/004_api_rate_limits.sql', import.meta.url), 'utf8');
 const cosmeticBadges = await readFile(new URL('../db/migrations/005_cosmetic_badges.sql', import.meta.url), 'utf8');
 const devnetAdminLab = await readFile(new URL('../db/migrations/006_devnet_admin_lab.sql', import.meta.url), 'utf8');
+const userActivity = await readFile(new URL('../db/migrations/007_devnet_user_activity.sql', import.meta.url), 'utf8');
 const sql = postgres(process.env.DATABASE_URL, { max: 1, ssl: 'require' });
 
 try {
@@ -26,6 +27,7 @@ try {
   await sql.unsafe(apiRateLimits).simple();
   await sql.unsafe(cosmeticBadges).simple();
   await sql.unsafe(devnetAdminLab).simple();
+  await sql.unsafe(userActivity).simple();
   console.log('SolStreak database schema is up to date.');
 } finally {
   await sql.end();

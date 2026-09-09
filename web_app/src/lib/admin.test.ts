@@ -1,6 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AdminAccessError, isAdminPrivyUserId, parseAdminPrivyUserIds, requireDevnetAdmin } from './admin';
+import {
+  AdminAccessError,
+  isAdminIdentity,
+  isAdminPrivyUserId,
+  parseAdminPrivyUserIds,
+  parseAdminWalletAddresses,
+  requireDevnetAdmin,
+} from './admin';
+
+const wallet = '11111111111111111111111111111111';
 
 describe('Devnet admin identity boundary', () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -16,12 +25,35 @@ describe('Devnet admin identity boundary', () => {
     expect(isAdminPrivyUserId('did:privy:a', ' , ')).toBe(false);
   });
 
+  it('accepts an exact authenticated Solana wallet from the dedicated allowlist', () => {
+    expect([...parseAdminWalletAddresses(` ${wallet},not-a-wallet,`)]).toEqual([wallet]);
+    expect(isAdminIdentity(
+      { userId: 'did:privy:user', walletAddress: wallet },
+      undefined,
+      wallet,
+    )).toBe(true);
+    expect(isAdminIdentity(
+      { userId: 'did:privy:user', walletAddress: 'Vote111111111111111111111111111111111111111' },
+      undefined,
+      wallet,
+    )).toBe(false);
+  });
+
+  it('supports a wallet placed in the original allowlist without weakening exact matching', () => {
+    expect(isAdminIdentity(
+      { userId: 'did:privy:user', walletAddress: wallet },
+      wallet,
+      undefined,
+    )).toBe(true);
+  });
+
   it('authenticates before authorization and rejects Mainnet even for an allowlisted user', async () => {
     vi.stubEnv('SOLSTREAK_ADMIN_PRIVY_USER_IDS', 'did:privy:admin');
     const authenticate = vi.fn().mockResolvedValue({ userId: 'did:privy:admin', walletAddress: 'wallet' });
-    await expect(requireDevnetAdmin(new Request('http://local'), 'mainnet', authenticate))
+    await expect(requireDevnetAdmin(new Request('http://local'), 'mainnet', wallet, authenticate))
       .rejects.toBeInstanceOf(AdminAccessError);
     expect(authenticate).toHaveBeenCalledOnce();
+    expect(authenticate).toHaveBeenCalledWith(expect.any(Request), wallet);
   });
 
   it('keeps admin implementation free of destructive SQL', () => {
@@ -29,6 +61,7 @@ describe('Devnet admin identity boundary', () => {
       new URL('./admin.ts', import.meta.url), new URL('./badges.ts', import.meta.url),
       new URL('./store.ts', import.meta.url), new URL('../app/api/admin/spin/route.ts', import.meta.url),
       new URL('../app/api/admin/streak/route.ts', import.meta.url),
+      new URL('../app/api/admin/users/route.ts', import.meta.url),
     ].map(url => readFileSync(url, 'utf8')).join('\n');
     expect(sources).not.toMatch(/\bDELETE\s+FROM\b|\bTRUNCATE\b/i);
   });

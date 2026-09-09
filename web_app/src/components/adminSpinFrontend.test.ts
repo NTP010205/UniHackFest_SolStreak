@@ -5,6 +5,8 @@ const adminLab = readFileSync(new URL('./AdminLab.tsx', import.meta.url), 'utf8'
 const wheel = readFileSync(new URL('./LuckyWheel.tsx', import.meta.url), 'utf8');
 const collection = readFileSync(new URL('./BadgeCollection.tsx', import.meta.url), 'utf8');
 const dashboard = readFileSync(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
+const adminPage = readFileSync(new URL('../app/admin/page.tsx', import.meta.url), 'utf8');
+const dashboardHero = readFileSync(new URL('./dashboard/DashboardHero.tsx', import.meta.url), 'utf8');
 
 describe('Admin cosmetic spin frontend contract', () => {
   it('keeps the wheel as the sole admin spin entry point', () => {
@@ -16,6 +18,7 @@ describe('Admin cosmetic spin frontend contract', () => {
     expect(wheel).toContain("transition('manual_request')");
     expect(wheel).toContain('onClick={() => void handleSpin()}');
     expect(wheel).toContain('∞ Admin test spins');
+    expect(wheel).toContain('walletAddress, crypto.randomUUID()');
   });
 
   it('does not request a spin from an effect or refresh callback', () => {
@@ -42,5 +45,15 @@ describe('Admin cosmetic spin frontend contract', () => {
     expect(collection).not.toContain('spin available');
     expect(collection).not.toMatch(/glyph\[|text-2xl[^>]*>\{.*◆/);
     expect(collection).toContain('BADGE_ARTWORK_CODES.map');
+  });
+
+  it('provides a dedicated server-authorized admin workspace', () => {
+    expect(adminPage).toContain('<AdminLab');
+    expect(adminPage).toContain('walletAddress={wallet.address}');
+    expect(adminPage).toContain('standalone');
+    expect(adminPage).not.toMatch(/SOLSTREAK_ADMIN|process\.env/);
+    expect(dashboardHero).toContain('href="/admin"');
+    expect(adminLab).toContain('Read only');
+    expect(adminLab).toContain('server-side Devnet admin allowlist');
   });
 });

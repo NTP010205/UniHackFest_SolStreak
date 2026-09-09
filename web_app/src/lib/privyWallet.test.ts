@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canUsePrivyEmbeddedWallet,
+  linkedSolanaWalletAddresses,
   selectPrivyEmbeddedSolanaWallet,
   type PrivySolanaWalletLike,
 } from './privyWallet';
@@ -41,5 +42,18 @@ describe('Privy embedded Solana wallet gate', () => {
       selectPrivyEmbeddedSolanaWallet([extension, evmLikeWallet, embeddedWallet]),
     ).toBe(embeddedWallet);
     expect(canUsePrivyEmbeddedWallet(true, true, embeddedWallet)).toBe(true);
+  });
+
+  it('selects only an embedded wallet linked to the active Privy user', () => {
+    const stale = wallet('stale-user-wallet', 'Privy', true);
+    const current = wallet('current-user-wallet', 'Privy', true);
+    const linked = linkedSolanaWalletAddresses([
+      { type: 'email', address: 'not-a-wallet' },
+      { type: 'wallet', chainType: 'ethereum', address: '0xabc' },
+      { type: 'wallet', chainType: 'solana', address: current.address },
+    ]);
+
+    expect(selectPrivyEmbeddedSolanaWallet([stale, current], linked)).toBe(current);
+    expect(selectPrivyEmbeddedSolanaWallet([stale], linked)).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIdentityToken } from '@privy-io/react-auth';
 import type { BadgeArtworkCode } from '@/lib/badgeArtwork';
 
@@ -17,20 +17,41 @@ export function useBadgeProfile(walletAddress: string | undefined, refreshKey = 
   const [data, setData] = useState<BadgeProfileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
+  const identityTokenRef = useRef(identityToken);
+  identityTokenRef.current = identityToken;
+  const hasIdentityToken = Boolean(identityToken);
   const refresh = useCallback(async () => {
-    if (!walletAddress || !identityToken) return;
+    const version = ++requestVersion.current;
+    const token = identityTokenRef.current;
+    if (!walletAddress || !token) {
+      setData(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const response = await fetch(`/api/profile/badges?wallet=${encodeURIComponent(walletAddress)}`, {
-        headers: { 'privy-id-token': identityToken },
+        headers: { 'privy-id-token': token },
       });
       if (!response.ok) throw new Error('Badge profile is temporarily unavailable');
-      setData(await response.json() as BadgeProfileData);
+      const nextData = await response.json() as BadgeProfileData;
+      if (version !== requestVersion.current) return;
+      setData(nextData);
       setError(null);
     } catch (cause) {
+      if (version !== requestVersion.current) return;
       setError(cause instanceof Error ? cause.message : 'Badge profile is temporarily unavailable');
-    } finally { setLoading(false); }
-  }, [identityToken, walletAddress]);
-  useEffect(() => { void refresh(); }, [refresh, refreshKey]);
+    } finally {
+      if (version === requestVersion.current) setLoading(false);
+    }
+  }, [hasIdentityToken, walletAddress]);
+  useEffect(() => {
+    setData(null);
+    setError(null);
+    void refresh();
+    return () => { requestVersion.current += 1; };
+  }, [refresh, refreshKey]);
   return { data, loading, error, refresh };
 }

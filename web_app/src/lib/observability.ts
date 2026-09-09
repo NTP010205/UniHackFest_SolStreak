@@ -13,6 +13,7 @@ export const OPERATIONAL_EVENT_NAMES = [
   'admin.spin.completed', 'admin.spin.failed',
   'admin.streak.updated', 'admin.streak.failed',
   'admin.metrics.viewed', 'admin.metrics.failed',
+  'admin.users.viewed', 'admin.users.failed',
 ] as const;
 
 export type OperationalEventName = typeof OPERATIONAL_EVENT_NAMES[number];

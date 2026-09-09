@@ -11,7 +11,7 @@
 - Vendor-neutral structured operational events and monitoring contract.
 - Cosmetic badge catalog, immutable award history, aggregate counts, canonical replay snapshots, and duplicate handling.
 - Devnet-only welcome entitlement and existing streak entitlement semantics.
-- Ordered migrations 002–006, unit/static coverage, and dedicated PostgreSQL integration harnesses.
+- Ordered migrations 002–007, unit/static coverage, and dedicated PostgreSQL integration harnesses.
 - Devnet-only Admin Lab authorization, persisted test-spin ledger path, self streak adjustment, and aggregate-only metrics endpoints.
 
 These contracts are sufficient for frontend redesign without changing backend behavior.
@@ -23,7 +23,7 @@ These contracts are sufficient for frontend redesign without changing backend be
 - Configure an external scheduler for the internal reconciliation endpoint.
 - Select a monitoring provider, ingest the documented events, and activate staging alert thresholds.
 - Run staging soak tests for RPC throttling, database outages, reconciliation timeouts, stale claims, rate-limit cleanup, and concurrent badge replay.
-- Rehearse migration 006 and Admin Lab concurrency/rollback against the isolated PostgreSQL rehearsal database before deployment.
+- Rehearse migrations 006–007 and Admin Lab activity reads against the isolated PostgreSQL rehearsal database before deployment.
 - Add global SMS authentication support only if product requirements resume it; it is not part of the current gate.
 - Perform a separate Mainnet activation/security review and supervised micro-test before changing either transaction flag.
 

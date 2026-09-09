@@ -23,6 +23,18 @@ const DEPOSIT_DISCRIMINATOR = [242, 35, 198, 137, 82, 225, 242, 182];
 const WITHDRAW_DISCRIMINATOR = [183, 18, 70, 156, 148, 109, 161, 34];
 const FULL_WITHDRAW_ASSETS = (1n << 64n) - 1n;
 
+export function assertDevnetDepositBalance(
+  rawBalance: bigint | null,
+  requiredAmount: bigint,
+) {
+  if (rawBalance === null) {
+    throw new Error('Circle Devnet USDC token account is missing');
+  }
+  if (rawBalance < requiredAmount) {
+    throw new Error('Not enough Circle Devnet USDC');
+  }
+}
+
 // web3.js v1 types still spell instruction data as Node Buffer, although the
 // runtime accepts Uint8Array and browser builds use that representation.
 function instructionData(bytes: Uint8Array): NonNullable<TransactionInstructionCtorFields['data']> {
@@ -137,6 +149,14 @@ export function buildDevnetFullWithdrawInstructions(
 
 export async function buildDevnetEarnTransaction(kind: 'deposit' | 'withdraw', signer: PublicKey, amount: number, connection: Connection, blockhash: string, profile: SolanaNetworkProfile) {
   await assertDevnetEarnOperational(connection, profile);
+  if (kind === 'deposit') {
+    const requiredAmount = toBaseUnits(amount);
+    const userUsdc = ata(signer, new PublicKey(profile.usdcMint));
+    const account = await connection.getAccountInfo(userUsdc, 'confirmed');
+    if (!account) assertDevnetDepositBalance(null, requiredAmount);
+    const balance = await connection.getTokenAccountBalance(userUsdc, 'confirmed');
+    assertDevnetDepositBalance(BigInt(balance.value.amount), requiredAmount);
+  }
   const instructions = buildDevnetEarnInstructions(kind, signer, amount, profile);
   return new VersionedTransaction(new TransactionMessage({ payerKey: signer, recentBlockhash: blockhash, instructions }).compileToV0Message());
 }
