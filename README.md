@@ -268,3 +268,33 @@ Source tests, TypeScript, production build, Devnet transaction simulations/E2E f
 ## Contributing
 
 Create a focused branch, preserve backend and transaction invariants, avoid committing generated artifacts or secrets, and run source verification from `web_app/` before requesting review. Frontend contributors should also read the handoff and API contract documents before changing UI behavior.
+---
+### 👨‍💻 Thành viên và phân công nhiệm vụ
+
+* **Họ tên:** Nguyễn Thành Phát
+  **Trường:** Đại học Văn Lang (VLU)
+  **Nhiệm vụ:** Phát triển backend, cơ sở dữ liệu, API và tích hợp các chức năng hệ thống.
+
+---
+
+* **Họ tên:** Huỳnh Trí Minh
+  **Trường:** Đại học Văn Lang (VLU)
+  **Nhiệm vụ:** Thiết kế và phát triển giao diện người dùng (UI).
+
+---
+
+* **Họ tên:** Huỳnh Gia Huy
+  **Trường:** Đại học Văn Lang (VLU)
+  **Nhiệm vụ:** Thiết kế slide và thực hiện báo cáo dự án.
+
+---
+
+* **Họ tên:** Nguyễn Hữu Đồng
+  **Trường:** Đại học Văn Lang (VLU)
+  **Nhiệm vụ:** Hỗ trợ thiết kế slide, nghiên cứu chuyên sâu và tìm hiểu kiến trúc backend.
+
+---
+
+* **Họ tên:** Lê Văn Toàn Thắng
+  **Trường:** Đại học Văn Lang (VLU)
+  **Nhiệm vụ:** Đại diện nhóm trình bày và giới thiệu sản phẩm trước Ban Giám khảo.
