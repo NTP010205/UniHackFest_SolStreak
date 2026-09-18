@@ -271,9 +271,9 @@ Create a focused branch, preserve backend and transaction invariants, avoid comm
 ---
 ### 👨‍💻 Thành viên và phân công nhiệm vụ
 
-* -**Họ tên:** Nguyễn Thành Phát
-  -**Trường:** Đại học Văn Lang (VLU)
-  -**Nhiệm vụ:** Phát triển backend, cơ sở dữ liệu, API và tích hợp các chức năng hệ thống.
+* ** - Họ tên:** Nguyễn Thành Phát
+  ** - Trường:** Đại học Văn Lang (VLU)
+  ** - Nhiệm vụ:** Phát triển backend, cơ sở dữ liệu, API và tích hợp các chức năng hệ thống.
 
 ---
 
