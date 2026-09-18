@@ -271,30 +271,30 @@ Create a focused branch, preserve backend and transaction invariants, avoid comm
 ---
 ### 👨‍💻 Thành viên và phân công nhiệm vụ
 
-* ** - Họ tên:** Nguyễn Thành Phát
-  ** - Trường:** Đại học Văn Lang (VLU)
-  ** - Nhiệm vụ:** Phát triển backend, cơ sở dữ liệu, API và tích hợp các chức năng hệ thống.
+**Họ tên:** Nguyễn Thành Phát<br>
+**Trường:** Đại học Văn Lang (VLU)<br>
+**Nhiệm vụ:** Phát triển backend, cơ sở dữ liệu, API và tích hợp các chức năng hệ thống.
 
 ---
 
-* **Họ tên:** Huỳnh Trí Minh
-  **Trường:** Đại học Văn Lang (VLU)
-  **Nhiệm vụ:** Thiết kế và phát triển giao diện người dùng (UI).
+**Họ tên:** Huỳnh Trí Minh<br>
+**Trường:** Đại học Văn Lang (VLU)<br>
+**Nhiệm vụ:** Thiết kế và phát triển giao diện người dùng (UI).
 
 ---
 
-* **Họ tên:** Huỳnh Gia Huy
-  **Trường:** Đại học Văn Lang (VLU)
-  **Nhiệm vụ:** Thiết kế slide và thực hiện báo cáo dự án.
+**Họ tên:** Huỳnh Gia Huy<br>
+**Trường:** Đại học Văn Lang (VLU)<br>
+**Nhiệm vụ:** Thiết kế slide và thực hiện báo cáo dự án.
 
 ---
 
-* **Họ tên:** Nguyễn Hữu Đồng
-  **Trường:** Đại học Văn Lang (VLU)
-  **Nhiệm vụ:** Hỗ trợ thiết kế slide, nghiên cứu chuyên sâu và tìm hiểu kiến trúc backend.
+**Họ tên:** Nguyễn Hữu Đồng<br>
+**Trường:** Đại học Văn Lang (VLU)<br>
+**Nhiệm vụ:** Hỗ trợ thiết kế slide và nghiên cứu chuyên sâu về backend.
 
 ---
 
-* **Họ tên:** Lê Văn Toàn Thắng
-  **Trường:** Đại học Văn Lang (VLU)
-  **Nhiệm vụ:** Đại diện nhóm trình bày và giới thiệu sản phẩm trước Ban Giám khảo.
+**Họ tên:** Lê Văn Toàn Thắng<br>
+**Trường:** Đại học Văn Lang (VLU)<br>
+**Nhiệm vụ:** Đại diện nhóm trình bày và giới thiệu sản phẩm trước Ban Giám khảo.
